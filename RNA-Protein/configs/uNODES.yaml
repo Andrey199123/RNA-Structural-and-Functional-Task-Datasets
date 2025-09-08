@@ -1,0 +1,31 @@
+experiment_name: "baseline_rpi7317_uNODES"
+data:
+  dataset_name: "rpi7317"
+  splits_dir: "data/interim/rpi7317_splits"
+  split_type: "uNODES" # <- unknown-Nodes (both sides unseen)
+  pairs_train: "{splits_dir}/{split_type}_train.csv"
+  pairs_val:   "{splits_dir}/{split_type}_val.csv"
+  pairs_test:  "{splits_dir}/{split_type}_test.csv"
+embeddings:
+  rna_npz:  "data/embeddings/rna_fm_rpi7317.npz"
+  prot_npz: "data/embeddings/esm2_8m_rpi7317.npz"
+model:
+  hidden_dim: 128
+  out_dim: 128
+  num_layers: 2
+  dropout: 0.1
+  head_hidden: 128
+
+train:
+  epochs: 30
+  batch_size: 512
+  lr: 0.001
+  weight_decay: 0.0001
+  neg_ratio: 1.0
+  eval_neg_ratio: 5.0
+  early_stop_patience: 5
+runtime:
+  seed: 42
+  device: "auto"
+  log_every: 1
+  ckpt_dir: "checkpoints"
