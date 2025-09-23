@@ -14,13 +14,8 @@ def set_seed(seed: int):
         torch.cuda.manual_seed_all(seed)
 
 
-# ---------------- FASTA utils ----------------
 
 def read_fasta_to_dict(path) -> dict:
-    """
-    FASTA -> {header: sequence}
-    Keeps full header line (without leading '>') so we can normalize later.
-    """
     d = {}
     header = None
     seq_chunks = []
@@ -42,25 +37,19 @@ def read_fasta_to_dict(path) -> dict:
 
 
 def normalize_rna_id(header: str) -> str:
-    """Take the first whitespace-delimited token as RNA ID."""
     return header.split()[0]
 
 
-_UNIPROT_RE = re.compile(r"^[^|]*\|([A-Z0-9]+)\|")  # matches sp|Q01844|..., tr|A0A...|...
+_UNIPROT_RE = re.compile(r"^[^|]*\|([A-Z0-9]+)\|")
 
 
 def normalize_prot_id(header: str) -> str:
-    """
-    Prefer UniProt accession from 'sp|ACC|...' or 'tr|ACC|...' headers.
-    Fallback: first token up to whitespace.
-    """
     m = _UNIPROT_RE.match(header)
     if m:
         return m.group(1)
     return header.split()[0]
 
 
-# --------------- Embedding loaders & index mapping ---------------
 
 def load_npz_embeddings(rna_npz_path, prot_npz_path):
     rna_npz = np.load(rna_npz_path)
@@ -88,7 +77,7 @@ def pairs_to_index_tensors(df: pd.DataFrame, rna_ids, prot_ids, device="cpu"):
         uu.append(rmap[rna])
         vv.append(offset + pmap[prot])
     if missing_rnas or missing_prots:
-        print(f"[WARN] Missing IDs when mapping pairs -> indices. "
+        print(f"Missing IDs when mapping pairs -> indices. "
               f"Missing RNAs: {len(missing_rnas)}, Missing Proteins: {len(missing_prots)}")
     if len(uu) == 0:
         return torch.empty(0, dtype=torch.long, device=device), torch.empty(0, dtype=torch.long, device=device)

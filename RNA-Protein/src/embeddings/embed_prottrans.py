@@ -1,17 +1,4 @@
 #!/usr/bin/env python3
-"""
-Generic protein embedding exporter with low-memory knobs.
-- Supports ProtBert (small) and ProtT5 (huge).
-- Chunked encoding + token-weighted mean pooling.
-- Can run with 'auto' backend (AutoModel) or T5 encoder.
-
-Examples:
-  # Small memory (ProtBert, recommended first):
-  #   --model_name Rostlab/prot_bert --backend auto --space_separated
-  #
-  # If you really want ProtT5 (needs lots of RAM/VRAM):
-  #   --model_name Rostlab/prot_t5_xl_uniref50 --backend t5 --space_separated
-"""
 
 import argparse, re
 from pathlib import Path
@@ -20,7 +7,6 @@ import torch
 from tqdm import tqdm
 from transformers import AutoTokenizer, AutoModel, T5Tokenizer, T5EncoderModel
 
-# ---------- FASTA ----------
 def read_fasta_to_dict(path) -> dict:
     d, header, seq = {}, None, []
     for line in Path(path).read_text().splitlines():

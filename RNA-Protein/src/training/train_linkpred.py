@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Train GraphSAGE + VecNN head for RPI link prediction with ZHMolGraph-like protocol.
-
-Usage:
-  PYTHONPATH=src python src/training/train_linkpred.py --config configs/default.yaml
-"""
 import os, sys, math, json, random
 from pathlib import Path
 import argparse
@@ -15,7 +9,6 @@ import torch
 from torch import nn, optim
 from tqdm import trange
 
-# Make sure relative imports work when run as a script
 THIS = Path(__file__).resolve()
 SRC = THIS.parents[1]
 if str(SRC) not in sys.path:
@@ -25,7 +18,6 @@ from models.gnn_sage import RPISAGE
 from models.vecnn_head import VecNNHead
 from utils.io import load_npz_embeddings, pairs_to_index_tensors, set_seed
 
-# sklearn metrics (used for robust MCC tuning)
 from sklearn.metrics import (
     matthews_corrcoef, accuracy_score, roc_auc_score, average_precision_score
 )
@@ -54,15 +46,10 @@ def build_edge_index(train_df, rna_ids, prot_ids):
 
 
 def sample_negatives(num_rna, num_prot, num_samples, existing_set, seed=42):
-    """
-    Sample (u, v) pairs where u in [0, num_rna) and v in [num_rna, num_rna+num_prot)
-    that are NOT in existing_set. Returns two tensors (u_idx, v_idx) on CPU.
-    """
     rng = random.Random(seed)
     seen = set()
     out_u, out_v = [], []
     offset = num_rna
-    # Guard against corner cases
     max_trials = max(10_000, num_samples * 50)
     trials = 0
     while len(out_u) < num_samples and trials < max_trials:
@@ -77,7 +64,6 @@ def sample_negatives(num_rna, num_prot, num_samples, existing_set, seed=42):
 
 
 def build_existing_edge_set(df, rna_ids, prot_ids):
-    """Return a set of (u_idx, v_idx) for ALL positives present in df."""
     rmap = {k: i for i, k in enumerate(rna_ids)}
     pmap = {k: i for i, k in enumerate(prot_ids)}
     offset = len(rna_ids)
@@ -102,7 +88,6 @@ def _metrics_from_arrays(y_true, y_prob, thr=0.5):
     y_true = np.asarray(y_true).astype(int)
     y_prob = np.asarray(y_prob).astype(float)
     y_pred = (y_prob >= thr).astype(int)
-    # Some safety in case a split is empty
     if y_true.size == 0:
         return {"acc": 0.0, "mcc": 0.0, "auroc": 0.0, "auprc": 0.0}
     return {
@@ -129,21 +114,14 @@ def _best_mcc_threshold(y_true, y_prob, grid=None):
 
 def evaluate(model, head, x_rna, x_prot, edge_index, pos_df, rna_ids, prot_ids,
              eval_neg_ratio, existing_set, device):
-    """
-    Returns a dict containing raw arrays (y_true, y_prob) AND default metrics at thr=0.5.
-    Threshold-tuned metrics are computed by the caller.
-    """
     model.eval(); head.eval()
     with torch.no_grad():
         z = model(x_rna, x_prot, edge_index)  # [N_tot, D]
         num_rna = x_rna.shape[0]
-        # positives
         pu, pv = pairs_to_index_tensors(pos_df, rna_ids, prot_ids, device=device)
         pu = pu.cpu(); pv = pv.cpu()
-        # negatives (fixed seed for determinism), exclude ALL known positives
         num_neg = int(math.ceil(len(pu) * eval_neg_ratio)) if len(pu) > 0 else 0
         neg_u, neg_v = sample_negatives(num_rna, x_prot.shape[0], num_neg, existing_set, seed=1234)
-        # score
         pu = pu.to(device); pv = pv.to(device)
         neg_u = neg_u.to(device); neg_v = neg_v.to(device)
         pos_scores = torch.sigmoid(head(z[pu], z[pv])).cpu().numpy() if len(pu) > 0 else np.zeros((0,), dtype=np.float32)
@@ -162,7 +140,6 @@ def main():
     args = ap.parse_args()
 
     cfg = yaml.safe_load(Path(args.config).read_text())
-    # Robust defaults
     cfg.setdefault("runtime", {})
     cfg.setdefault("train", {})
     cfg.setdefault("model", {})
@@ -181,7 +158,6 @@ def main():
 
     set_seed(cfg["runtime"]["seed"])
 
-    # Resolve paths in config templates
     dd = cfg["data"]
     dd["pairs_train"] = dd["pairs_train"].format(**dd)
     dd["pairs_val"]   = dd["pairs_val"].format(**dd)
@@ -190,28 +166,22 @@ def main():
     device = device_from_cfg(cfg)
     ckpt_dir = Path(cfg["runtime"]["ckpt_dir"]); ckpt_dir.mkdir(parents=True, exist_ok=True)
 
-    # Load embeddings
     (rna_ids, Xr), (prot_ids, Xp) = load_npz_embeddings(cfg["embeddings"]["rna_npz"],
                                                         cfg["embeddings"]["prot_npz"])
     x_rna = Xr.to(device)
     x_prot = Xp.to(device)
 
-    # Load splits
     train_df = pd.read_csv(dd["pairs_train"]).drop_duplicates()
     val_df   = pd.read_csv(dd["pairs_val"]).drop_duplicates()
     test_df  = pd.read_csv(dd["pairs_test"]).drop_duplicates()
 
-    # Build ALL known positives (train+val+test) to prevent collisions in neg sampling
     all_df = pd.concat([train_df, val_df, test_df], ignore_index=True)
     exist_all = build_existing_edge_set(all_df, rna_ids, prot_ids)
 
-    # Build train graph
     edge_index = build_edge_index(train_df, rna_ids, prot_ids).to(device)
 
-    # Build positive pairs for training
     pos_u_tr, pos_v_tr = pairs_to_index_tensors(train_df, rna_ids, prot_ids, device=device)
 
-    # Model
     model = RPISAGE(
         in_rna=x_rna.shape[1],
         in_prot=x_prot.shape[1],
@@ -223,12 +193,10 @@ def main():
     head_hidden = cfg["model"].get("head_hidden", 256)
     head = VecNNHead(cfg["model"]["out_dim"], hidden=head_hidden).to(device)
 
-    # Optim
     params = list(model.parameters()) + list(head.parameters())
     opt = optim.Adam(params, lr=cfg["train"]["lr"], weight_decay=cfg["train"]["weight_decay"])
     loss_fn = nn.BCEWithLogitsLoss()
 
-    # Training
     best_val_mcc = -1.0
     best_snapshot_path = Path(cfg["runtime"]["ckpt_dir"]) / f"{cfg.get('experiment_name','baseline')}.pt"
     patience = cfg["train"]["early_stop_patience"]
@@ -242,9 +210,7 @@ def main():
     for epoch in trange(1, epochs + 1, desc="epochs"):
         model.train(); head.train()
         total_loss = 0.0
-        # mini-batches of positives
         for pu, pv in make_batches(pos_u_tr, pos_v_tr, bsz):
-            # sample negatives on the fly — exclude ANY known positive (train/val/test)
             num_neg = int(math.ceil(len(pu) * neg_ratio))
             neg_u, neg_v = sample_negatives(
                 x_rna.shape[0], x_prot.shape[0], num_neg, exist_all,
@@ -253,7 +219,6 @@ def main():
             pu = pu.to(device); pv = pv.to(device)
             neg_u = neg_u.to(device); neg_v = neg_v.to(device)
 
-            # forward
             z = model(x_rna, x_prot, edge_index)
             pos_logit = head(z[pu], z[pv])
             neg_logit = head(z[neg_u], z[neg_v])
@@ -268,7 +233,6 @@ def main():
             total_loss += loss.item()
 
         if epoch % cfg["runtime"]["log_every"] == 0:
-            # Evaluate — negatives exclude ALL known positives
             val_raw = evaluate(
                 model, head, x_rna, x_prot, edge_index, val_df,
                 rna_ids, prot_ids, eval_neg_ratio, exist_all, device
@@ -278,7 +242,6 @@ def main():
                 rna_ids, prot_ids, eval_neg_ratio, exist_all, device
             )
 
-            # Choose threshold on VAL to maximize MCC; apply to TEST
             thr, best_mcc_val = _best_mcc_threshold(val_raw["y_true"], val_raw["y_prob"])
             val_m  = _metrics_from_arrays(val_raw["y_true"],  val_raw["y_prob"],  thr=thr)
             test_m = _metrics_from_arrays(test_raw["y_true"], test_raw["y_prob"], thr=thr)
@@ -290,7 +253,6 @@ def main():
                 f"| thr={thr:.2f}"
             )
 
-            # Early stopping on val MCC (thresholded)
             if val_m["mcc"] > best_val_mcc:
                 best_val_mcc = val_m["mcc"]
                 bad_epochs = 0
@@ -310,7 +272,7 @@ def main():
                     break
 
     print(f"Best VAL MCC: {best_val_mcc:.4f} (checkpoint: {best_snapshot_path.name})")
-    print("✅ Training finished.")
+    print("Training finished.")
 
 
 if __name__ == "__main__":

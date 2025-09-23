@@ -1,10 +1,4 @@
 #!/usr/bin/env python3
-"""
-Run comprehensive benchmark evaluation for ZHMolGraph replication.
-- 5-fold cross-validation on RPI7317 and NPInter2 datasets
-- Different split types: random, uRNA, uPROT, uNODES
-- Generate performance tables and comparison with paper results
-"""
 import os, sys, json, random
 from pathlib import Path
 import argparse
@@ -15,7 +9,6 @@ import torch
 from tqdm import trange
 from sklearn.model_selection import KFold
 
-# Make sure relative imports work when run as a script
 THIS = Path(__file__).resolve()
 SRC = THIS.parents[1]
 if str(SRC) not in sys.path:
@@ -29,7 +22,6 @@ from training.train_linkpred import (
     evaluate, _best_mcc_threshold, _metrics_from_arrays
 )
 
-# sklearn metrics
 from sklearn.metrics import (
     matthews_corrcoef, accuracy_score, roc_auc_score, average_precision_score
 )
@@ -44,20 +36,15 @@ def device_from_cfg(cfg):
 
 def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids, 
                    x_rna, x_prot, cfg, device):
-    """Run training and evaluation for a single fold."""
     set_seed(cfg["runtime"]["seed"] + fold_idx)
     
-    # Build training graph
     edge_index = build_edge_index(train_df, rna_ids, prot_ids).to(device)
     
-    # Build positive pairs for training
     pos_u_tr, pos_v_tr = pairs_to_index_tensors(train_df, rna_ids, prot_ids, device=device)
     
-    # Build ALL known positives (train+val+test) to prevent collisions in neg sampling
     all_df = pd.concat([train_df, val_df, test_df], ignore_index=True)
     exist_all = build_existing_edge_set(all_df, rna_ids, prot_ids)
     
-    # Model
     model = RPISAGE(
         in_rna=x_rna.shape[1],
         in_prot=x_prot.shape[1],
@@ -69,12 +56,10 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
     head_hidden = cfg["model"].get("head_hidden", 256)
     head = VecNNHead(cfg["model"]["out_dim"], hidden=head_hidden).to(device)
     
-    # Optimizer
     params = list(model.parameters()) + list(head.parameters())
     opt = torch.optim.Adam(params, lr=cfg["train"]["lr"], weight_decay=cfg["train"]["weight_decay"])
     loss_fn = torch.nn.BCEWithLogitsLoss()
     
-    # Training
     best_val_mcc = -1.0
     patience = cfg["train"]["early_stop_patience"]
     bad_epochs = 0
@@ -88,7 +73,6 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
         model.train(); head.train()
         total_loss = 0.0
         
-        # Mini-batches of positives
         n = pos_u_tr.shape[0]
         if n == 0:
             break
@@ -98,7 +82,6 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
             pu = pos_u_tr[idx[i:j]]
             pv = pos_v_tr[idx[i:j]]
             
-            # Sample negatives on the fly
             num_neg = int(torch.ceil(torch.tensor(len(pu) * neg_ratio)).item())
             neg_u, neg_v = sample_negatives(
                 x_rna.shape[0], x_prot.shape[0], num_neg, exist_all,
@@ -107,7 +90,6 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
             pu = pu.to(device); pv = pv.to(device)
             neg_u = neg_u.to(device); neg_v = neg_v.to(device)
             
-            # Forward
             z = model(x_rna, x_prot, edge_index)
             pos_logit = head(z[pu], z[pv])
             neg_logit = head(z[neg_u], z[neg_v])
@@ -121,21 +103,17 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
             opt.step()
             total_loss += loss.item()
         
-        # Evaluate every epoch
         val_raw = evaluate(
             model, head, x_rna, x_prot, edge_index, val_df,
             rna_ids, prot_ids, eval_neg_ratio, exist_all, device
         )
         
-        # Choose threshold on VAL to maximize MCC
         thr, best_mcc_val = _best_mcc_threshold(val_raw["y_true"], val_raw["y_prob"])
         val_m = _metrics_from_arrays(val_raw["y_true"], val_raw["y_prob"], thr=thr)
         
-        # Early stopping on val MCC
         if val_m["mcc"] > best_val_mcc:
             best_val_mcc = val_m["mcc"]
             bad_epochs = 0
-            # Save best model state
             best_model_state = {k: v.cpu() for k, v in model.state_dict().items()}
             best_head_state = {k: v.cpu() for k, v in head.state_dict().items()}
             best_thr = thr
@@ -144,7 +122,6 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
             if bad_epochs >= patience:
                 break
     
-    # Load best model and evaluate on test set
     model.load_state_dict({k: v.to(device) for k, v in best_model_state.items()})
     head.load_state_dict({k: v.to(device) for k, v in best_head_state.items()})
     
@@ -166,12 +143,10 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
 
 
 def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
-    """Run 5-fold cross-validation for a given dataset and split type."""
     print(f"\n{'='*60}")
     print(f"Running {n_folds}-fold CV on {dataset_name} with {split_type} split")
     print(f"{'='*60}")
     
-    # Load embeddings
     (rna_ids, Xr), (prot_ids, Xp) = load_npz_embeddings(
         cfg["embeddings"]["rna_npz"],
         cfg["embeddings"]["prot_npz"]
@@ -180,11 +155,9 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
     x_rna = Xr.to(device)
     x_prot = Xp.to(device)
     
-    # Load all pairs
     pairs_path = cfg["data"]["pairs_csv"]
     all_pairs = pd.read_csv(pairs_path)
     
-    # Detect columns
     cols = {c.lower().strip(): c for c in all_pairs.columns}
     rna_keys = ["rna_id", "rna", "rna names", "rna name"]
     prot_keys = ["prot_id", "protein", "protein names", "protein name"]
@@ -194,10 +167,8 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
     if rna_col is None or prot_col is None:
         raise ValueError(f"Could not find RNA/protein columns in {pairs_path}")
     
-    # Clean and prepare data
     df = all_pairs[[rna_col, prot_col]].rename(columns={rna_col: "rna_id", prot_col: "prot_id"}).drop_duplicates()
     
-    # Filter to only include pairs where both RNA and protein have embeddings
     rna_set = set(rna_ids)
     prot_set = set(prot_ids)
     df = df[df['rna_id'].isin(rna_set) & df['prot_id'].isin(prot_set)]
@@ -206,9 +177,7 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
     print(f"Unique RNAs: {df['rna_id'].nunique()}")
     print(f"Unique Proteins: {df['prot_id'].nunique()}")
     
-    # Create splits based on split type
     if split_type == "random":
-        # Random edge split
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
         edge_splits = list(kf.split(df))
         splits = []

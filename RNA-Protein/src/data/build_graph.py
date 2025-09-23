@@ -1,11 +1,4 @@
 #!/usr/bin/env python3
-"""
-Build training graph edge_index from a train pairs CSV and embedding ID lists.
-
-We create a bipartite undirected graph:
-- RNA nodes indexed [0 .. N_rna-1]
-- Protein nodes indexed [N_rna .. N_rna+N_prot-1]
-"""
 import argparse
 from pathlib import Path
 import numpy as np
@@ -30,7 +23,7 @@ def build_edge_index(train_csv, rna_ids, prot_ids):
             u = rmap[rna]
             v = offset + pmap[prot]
             src.append(u); dst.append(v)
-            src.append(v); dst.append(u)  # undirected
+            src.append(v); dst.append(u)
     edge_index = torch.tensor([src, dst], dtype=torch.long)
     return edge_index
 
@@ -52,7 +45,7 @@ def main():
     torch.save({"edge_index": edge_index,
                 "rna_ids": rna_ids,
                 "prot_ids": prot_ids}, args.out_pt)
-    print(f"✅ Saved graph to {args.out_pt}")
+    print(f"Saved graph to {args.out_pt}")
 
 
 if __name__ == "__main__":

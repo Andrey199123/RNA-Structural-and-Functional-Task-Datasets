@@ -1,31 +1,19 @@
 #!/usr/bin/env python3
-"""
-Export RNA-FM pooled embeddings for each RNA sequence, reading FASTA directly.
-- Uses the maintained model 'multimolecule/rnafm' (requires `pip install multimolecule`)
-- Handles very long sequences via chunked encoding (mean-pooled across chunks).
-- Automatically handles T/U via the RNA tokenizer.
-
-Inputs:
-  --fasta: FASTA file of RNA sequences (headers used as IDs; first token up to whitespace)
-Outputs:
-  --out_npz: npz with one array per ID (pooled vector, typically dim=640)
-"""
 import argparse
 from pathlib import Path
 import numpy as np
 import torch
 from tqdm import tqdm
 
-from multimolecule import RnaTokenizer, RnaFmModel  # <- key change
+from multimolecule import RnaTokenizer, RnaFmModel
 from utils.io import read_fasta_to_dict, normalize_rna_id
 
 
 def mean_pool(last_hidden_state, attention_mask):
-    # last_hidden_state: [B, T, H]; attention_mask: [B, T]
     mask = attention_mask.unsqueeze(-1).float()
     s = (last_hidden_state * mask).sum(1)
     d = mask.sum(1).clamp(min=1e-9)
-    return s / d  # [B, H]
+    return s / d
 
 
 def encode_sequence_in_chunks(tokenizer, model, seq, device, max_len_tokens=900, add_special_tokens=True):

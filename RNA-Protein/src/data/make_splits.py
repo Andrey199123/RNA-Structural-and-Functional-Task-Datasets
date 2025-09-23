@@ -1,16 +1,4 @@
 #!/usr/bin/env python3
-"""
-Create ZHMolGraph-style splits for RPI link prediction:
-- random edge split
-- unknown RNA split
-- unknown Protein split
-- unknown Nodes (both sides held-out) split
-
-Input CSV may have headers like:
-  - rna_id, prot_id
-  - RNA names, Protein names, Labels
-This script auto-detects and renames to rna_id/prot_id internally.
-"""
 import argparse
 import random
 from pathlib import Path
@@ -19,7 +7,6 @@ import pandas as pd
 
 def _detect_columns(df: pd.DataFrame):
     cols = {c.lower().strip(): c for c in df.columns}
-    # possible keys for rna and protein
     rna_keys  = ["rna_id", "rna", "rna names", "rna name"]
     prot_keys = ["prot_id", "protein", "protein names", "protein name"]
     rna_col = next((cols[k] for k in rna_keys if k in cols), None)
