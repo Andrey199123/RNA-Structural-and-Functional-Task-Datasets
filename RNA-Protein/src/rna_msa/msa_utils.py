@@ -292,6 +292,88 @@ def download_rfam_database(output_dir: Path) -> Path:
         raise
 
 
+def convert_stockholm_to_a3m(sto_path: Path, a3m_path: Path, query_id: str = None) -> Path:
+    """
+    Convert Stockholm alignment to A3M format
+    
+    A3M format:
+    - First sequence is query (no gaps)
+    - Other sequences: '-' for deletions, lowercase for insertions
+    
+    Args:
+        sto_path: Input Stockholm file
+        a3m_path: Output A3M file
+        query_id: ID of query sequence (if None, uses first sequence)
+        
+    Returns:
+        Path to A3M file
+    """
+    logger.info(f"Converting {sto_path} to A3M format")
+    
+    # Read Stockholm alignment
+    sequences = {}
+    seq_order = []
+    
+    with open(sto_path, 'r') as f:
+        for line in f:
+            line = line.strip()
+            if line.startswith('#') or line.startswith('//') or not line:
+                continue
+            
+            parts = line.split()
+            if len(parts) >= 2:
+                seq_id = parts[0]
+                seq = parts[1]
+                
+                if seq_id not in sequences:
+                    sequences[seq_id] = []
+                    seq_order.append(seq_id)
+                sequences[seq_id].append(seq)
+    
+    # Concatenate sequence fragments
+    for seq_id in sequences:
+        sequences[seq_id] = ''.join(sequences[seq_id])
+    
+    if not sequences:
+        raise ValueError(f"No sequences found in {sto_path}")
+    
+    # Determine query
+    if query_id is None or query_id not in sequences:
+        query_id = seq_order[0]
+    
+    query_seq = sequences[query_id]
+    
+    # Write A3M format
+    with open(a3m_path, 'w') as f:
+        # Write query without gaps
+        query_ungapped = query_seq.replace('-', '').replace('.', '')
+        f.write(f">{query_id}\n{query_ungapped}\n")
+        
+        # Write other sequences in A3M format
+        for seq_id in seq_order:
+            if seq_id == query_id:
+                continue
+            
+            seq = sequences[seq_id]
+            
+            # Convert to A3M format
+            a3m_seq = []
+            for q_char, s_char in zip(query_seq, seq):
+                if q_char in '-.':  # Query has gap = insertion in subject
+                    if s_char not in '-.':
+                        a3m_seq.append(s_char.lower())
+                else:  # Query has residue
+                    if s_char in '-.':
+                        a3m_seq.append('-')
+                    else:
+                        a3m_seq.append(s_char.upper())
+            
+            f.write(f">{seq_id}\n{''.join(a3m_seq)}\n")
+    
+    logger.info(f"Converted to A3M: {len(sequences)} sequences")
+    return a3m_path
+
+
 def check_dependencies() -> dict:
     """
     Check if required external tools are installed

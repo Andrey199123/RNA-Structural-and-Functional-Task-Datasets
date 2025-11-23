@@ -76,6 +76,7 @@ class RNAMSAPipeline:
     def __init__(
         self,
         rfam_db_path: Optional[Path] = None,
+        rfam_seed_path: Optional[Path] = None,
         infernal_path: str = "cmscan",
         sequence_db_path: Optional[Path] = None,
         output_dir: Path = Path("data/rna_msa_output"),
@@ -86,12 +87,14 @@ class RNAMSAPipeline:
         
         Args:
             rfam_db_path: Path to Rfam covariance model database
+            rfam_seed_path: Path to Rfam.seed file with family alignments
             infernal_path: Path to Infernal cmscan executable
             sequence_db_path: Path to sequence database for homology search
             output_dir: Directory for output files
             n_cpu: Number of CPUs for parallel processing
         """
         self.rfam_db_path = rfam_db_path
+        self.rfam_seed_path = rfam_seed_path
         self.infernal_path = infernal_path
         self.sequence_db_path = sequence_db_path
         self.output_dir = Path(output_dir)
@@ -183,7 +186,7 @@ class RNAMSAPipeline:
     
     def _process_infernal_rfam(self, rna: RNASequence) -> Dict:
         """Process RNA using Infernal + Rfam"""
-        from .infernal_rfam import search_rfam, fetch_rfam_alignment
+        from .infernal_rfam import search_rfam, fetch_rfam_alignment, count_msa_sequences
         
         # Search Rfam for matches
         rfam_hits = search_rfam(
@@ -205,14 +208,18 @@ class RNAMSAPipeline:
         msa_path = fetch_rfam_alignment(
             rna,
             best_hit,
-            self.output_dir
+            self.output_dir,
+            rfam_seed_path=self.rfam_seed_path
         )
+        
+        # Count actual MSA depth
+        msa_depth = count_msa_sequences(msa_path)
         
         return {
             'msa_path': str(msa_path),
             'rfam_family': best_hit['family'],
             'rfam_evalue': best_hit['evalue'],
-            'msa_depth': best_hit.get('msa_depth', 0)
+            'msa_depth': msa_depth
         }
     
     def _process_rnacmap_style(self, rna: RNASequence) -> Dict:

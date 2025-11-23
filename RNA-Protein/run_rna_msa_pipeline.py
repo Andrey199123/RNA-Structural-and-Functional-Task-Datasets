@@ -63,6 +63,13 @@ def main():
     )
     
     parser.add_argument(
+        "--rfam_seed",
+        type=Path,
+        default=None,
+        help="Path to Rfam.seed file with family alignments (optional)"
+    )
+    
+    parser.add_argument(
         "--sequence_db",
         type=Path,
         default=None,
@@ -131,10 +138,12 @@ def main():
     logger.info(f"  RNA FASTA: {args.rna_fasta}")
     logger.info(f"  Output dir: {args.output_dir}")
     logger.info(f"  Rfam DB: {args.rfam_db or 'Not provided'}")
+    logger.info(f"  Rfam seed: {args.rfam_seed or 'Not provided'}")
     logger.info(f"  Sequence DB: {args.sequence_db or 'Not provided'}")
     
     pipeline = RNAMSAPipeline(
         rfam_db_path=args.rfam_db,
+        rfam_seed_path=args.rfam_seed,
         sequence_db_path=args.sequence_db,
         output_dir=args.output_dir,
         n_cpu=args.n_cpu
