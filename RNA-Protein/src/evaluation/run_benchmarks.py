@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# This is from Phase 1 (ZHMolGraph Replication, not part of RNA MSA pipeline)
 import os, sys, json, random
 from pathlib import Path
 import argparse
@@ -17,7 +17,7 @@ if str(SRC) not in sys.path:
 from models.gnn_sage import RPISAGE
 from models.vecnn_head import VecNNHead
 from utils.io import load_npz_embeddings, pairs_to_index_tensors, set_seed
-from training.train_linkpred import (
+from train_linkpred import (
     build_edge_index, sample_negatives, build_existing_edge_set,
     evaluate, _best_mcc_threshold, _metrics_from_arrays
 )
@@ -26,13 +26,11 @@ from sklearn.metrics import (
     matthews_corrcoef, accuracy_score, roc_auc_score, average_precision_score
 )
 
-
 def device_from_cfg(cfg):
     dev = cfg.get("runtime", {}).get("device", "auto")
     if dev == "auto":
         return torch.device("cuda" if torch.cuda.is_available() else "cpu")
     return torch.device(dev)
-
 
 def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids, 
                    x_rna, x_prot, cfg, device):
@@ -53,6 +51,7 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
         num_layers=cfg["model"]["num_layers"],
         dropout=cfg["model"]["dropout"],
     ).to(device)
+
     head_hidden = cfg["model"].get("head_hidden", 256)
     head = VecNNHead(cfg["model"]["out_dim"], hidden=head_hidden).to(device)
     
@@ -77,7 +76,9 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
         if n == 0:
             break
         idx = torch.randperm(n)
+
         for i in range(0, n, bsz):
+
             j = min(i + bsz, n)
             pu = pos_u_tr[idx[i:j]]
             pv = pos_v_tr[idx[i:j]]
@@ -112,11 +113,13 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
         val_m = _metrics_from_arrays(val_raw["y_true"], val_raw["y_prob"], thr=thr)
         
         if val_m["mcc"] > best_val_mcc:
+
             best_val_mcc = val_m["mcc"]
             bad_epochs = 0
             best_model_state = {k: v.cpu() for k, v in model.state_dict().items()}
             best_head_state = {k: v.cpu() for k, v in head.state_dict().items()}
             best_thr = thr
+
         else:
             bad_epochs += 1
             if bad_epochs >= patience:
@@ -143,6 +146,7 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
 
 
 def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
+
     print(f"\n{'='*60}")
     print(f"Running {n_folds}-fold CV on {dataset_name} with {split_type} split")
     print(f"{'='*60}")
@@ -178,6 +182,7 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
     print(f"Unique Proteins: {df['prot_id'].nunique()}")
     
     if split_type == "random":
+
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
         edge_splits = list(kf.split(df))
         splits = []
@@ -189,39 +194,50 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
+
     elif split_type == "uRNA":
+
         # Unknown RNA split
         rnas = df['rna_id'].unique()
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
         rna_splits = list(kf.split(rnas))
         splits = []
+
         for train_rna_idx, test_rna_idx in rna_splits:
+
             train_rnas = set(rnas[train_rna_idx])
             test_rnas = set(rnas[test_rna_idx])
             train_df = df[df['rna_id'].isin(train_rnas)]
             test_df = df[df['rna_id'].isin(test_rnas)]
+
             # Split train into train/val
             val_size = len(train_df) // 10
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
+
     elif split_type == "uPROT":
+
         # Unknown Protein split
         prots = df['prot_id'].unique()
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
         prot_splits = list(kf.split(prots))
         splits = []
+
         for train_prot_idx, test_prot_idx in prot_splits:
             train_prots = set(prots[train_prot_idx])
             test_prots = set(prots[test_prot_idx])
             train_df = df[df['prot_id'].isin(train_prots)]
             test_df = df[df['prot_id'].isin(test_prots)]
+
             # Split train into train/val
             val_size = len(train_df) // 10
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
+
     elif split_type == "uNODES":
+
         # Unknown Nodes split (both RNA and protein held out)
         rnas = df['rna_id'].unique()
         prots = df['prot_id'].unique()
@@ -229,7 +245,9 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
         rna_splits = list(kf.split(rnas))
         prot_splits = list(kf.split(prots))
         splits = []
+
         for (train_rna_idx, test_rna_idx), (train_prot_idx, test_prot_idx) in zip(rna_splits, prot_splits):
+            
             train_rnas = set(rnas[train_rna_idx])
             test_rnas = set(rnas[test_rna_idx])
             train_prots = set(prots[train_prot_idx])
@@ -241,12 +259,14 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
+
     else:
         raise ValueError(f"Unknown split type: {split_type}")
     
     # Run cross-validation
     results = []
     for fold_idx, (train_idx, val_idx, test_idx) in enumerate(splits):
+
         print(f"\nFold {fold_idx + 1}/{n_folds}")
         train_df = df.iloc[train_idx]
         val_df = df.iloc[val_idx]
@@ -260,7 +280,6 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
         print(f"Fold {fold_idx + 1} - Val MCC: {result['val_mcc']:.4f}, "
               f"Test MCC: {result['test_mcc']:.4f}, Test AUROC: {result['test_auroc']:.4f}")
     
-    # Aggregate results
     results_df = pd.DataFrame(results)
     summary = {
         "dataset": dataset_name,
@@ -289,6 +308,7 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
 
 
 def main():
+
     ap = argparse.ArgumentParser()
     ap.add_argument("--dataset", choices=["rpi7317", "npinter2"], required=True)
     ap.add_argument("--split_type", choices=["random", "uRNA", "uPROT", "uNODES"], required=True)
@@ -300,13 +320,13 @@ def main():
     
     # Set up paths based on dataset
     if args.dataset == "rpi7317":
-        cfg["data"]["pairs_csv"] = "data/raw/rpi7317_pairs.csv"
+        cfg["data"]["pairs_csv"] = "data/RPI7317/rpi7317_pairs.csv"
         cfg["embeddings"]["rna_npz"] = "data/embeddings/rna_fm_rpi7317.npz"
         cfg["embeddings"]["prot_npz"] = "data/embeddings/esm2_35m_rpi7317.npz"
     elif args.dataset == "npinter2":
-        # You'll need to set up NPInter2 data
-        cfg["data"]["pairs_csv"] = "data/raw/NPInter10412_dataset.txt"  # Adjust path as needed
-        cfg["embeddings"]["rna_npz"] = "data/embeddings/rna_fm_npinter2.npz"  # Generate these
+        # Haven't used NPInter yet but it's here just in case
+        cfg["data"]["pairs_csv"] = "data/raw/NPInter10412_dataset.txt"
+        cfg["embeddings"]["rna_npz"] = "data/embeddings/rna_fm_npinter2.npz"
         cfg["embeddings"]["prot_npz"] = "data/embeddings/esm2_35m_npinter2.npz"
     
     # Run cross-validation
@@ -319,7 +339,6 @@ def main():
         print(f"\nResults saved to: {args.output}")
     
     return summary
-
 
 if __name__ == "__main__":
     main()

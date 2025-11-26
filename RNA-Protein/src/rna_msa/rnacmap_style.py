@@ -88,7 +88,7 @@ def predict_RNAfold(rna, output_dir: Path) -> Tuple[str, Path]:
     return structure, output_file
 
 
-def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4) -> Path:
+def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4, calibrate: bool = False) -> Path:
     """
     Build custom covariance model from predicted structure
     
@@ -96,6 +96,7 @@ def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4) -> Path:
         rna: RNASequence object
         output_dir: Output directory
         n_cpu: Number of CPUs
+        calibrate: Whether to calibrate CM (slow, but gives better E-values)
         
     Returns:
         Path to covariance model file
@@ -132,10 +133,14 @@ def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4) -> Path:
         subprocess.run(cmd, capture_output=True, text=True, check=True)
         logger.info(f"Built custom CM for {rna.id}")
         
-        # Calibrate CM
-        cmd = ["cmcalibrate", "--cpu", str(n_cpu), str(cm_file)]
-        subprocess.run(cmd, capture_output=True, text=True, check=True)
-        logger.info(f"Calibrated CM for {rna.id}")
+        # Calibrate CM (optional, very slow)
+        if calibrate:
+            logger.info(f"Calibrating CM for {rna.id} (this may take several minutes)...")
+            cmd = ["cmcalibrate", "--cpu", str(n_cpu), str(cm_file)]
+            subprocess.run(cmd, capture_output=True, text=True, check=True)
+            logger.info(f"Calibrated CM for {rna.id}")
+        else:
+            logger.info(f"Skipping CM calibration for {rna.id} (use calibrate=True for better E-values)")
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.error(f"CM build failed for {rna.id}: {e}")
@@ -145,9 +150,9 @@ def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4) -> Path:
 
 
 def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
-                   n_cpu: int = 4, evalue_threshold: float = 0.01) -> Path:
+                   n_cpu: int = 4, evalue_threshold: float = 0.01, use_blast_filter: bool = True) -> Path:
     """
-    Search for homologs using custom CM
+    Search for homologs using custom CM with optional BLAST pre-filtering
     
     Args:
         rna: RNASequence object
@@ -156,12 +161,46 @@ def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
         output_dir: Output directory
         n_cpu: Number of CPUs
         evalue_threshold: E-value threshold
+        use_blast_filter: Use BLAST for fast pre-filtering (recommended for large databases)
         
     Returns:
         Path to homolog sequences file
     """
     hits_file = output_dir / f"{rna.id}_homologs.fa"
     tblout_file = output_dir / f"{rna.id}_homologs.tblout"
+    
+    # For large databases, use BLAST pre-filtering
+    if use_blast_filter and sequence_db.stat().st_size > 1_000_000_000:  # > 1GB
+        logger.info(f"Large database detected, using BLAST pre-filtering for {rna.id}")
+        
+        try:
+            from .fast_homology_search import FastHomologySearch
+            
+            # BLAST search for candidates
+            searcher = FastHomologySearch(sequence_db)
+            n_homologs, candidates_file = searcher.fast_homology_search(
+                query_seq=rna.sequence,
+                query_id=rna.id,
+                output_fasta=output_dir / f"{rna.id}_blast_candidates.fa",
+                max_homologs=1000,
+                min_identity=0.5
+            )
+            
+            if n_homologs == 0:
+                logger.warning(f"No BLAST candidates found for {rna.id}")
+                # Create empty file
+                hits_file.touch()
+                return hits_file
+            
+            # Use candidates as search database
+            search_db = candidates_file
+            logger.info(f"BLAST found {n_homologs} candidates, running cmsearch on subset")
+            
+        except Exception as e:
+            logger.warning(f"BLAST pre-filtering failed: {e}, falling back to full cmsearch")
+            search_db = sequence_db
+    else:
+        search_db = sequence_db
     
     try:
         # Run cmsearch
@@ -172,7 +211,7 @@ def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
             "--tblout", str(tblout_file),
             "-A", str(hits_file),  # Output alignment
             str(cm_file),
-            str(sequence_db)
+            str(search_db)
         ]
         
         subprocess.run(cmd, capture_output=True, text=True, check=True)

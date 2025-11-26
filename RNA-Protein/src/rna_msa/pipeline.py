@@ -131,7 +131,7 @@ class RNAMSAPipeline:
         self,
         rna: RNASequence,
         strategy: Optional[RNAStrategy] = None,
-        force_strategy: bool = False
+        force_strategy: bool = True
     ) -> Dict:
         """
         Process a single RNA sequence through the pipeline
@@ -170,6 +170,7 @@ class RNAMSAPipeline:
             
         except Exception as e:
             logger.error(f"Failed to process {rna.id} with {strategy.value}: {e}")
+            result['error'] = str(e)
             
             # Fall back to single-sequence if not forcing strategy
             if not force_strategy and strategy != RNAStrategy.SINGLE_SEQUENCE:
@@ -226,11 +227,12 @@ class RNAMSAPipeline:
         """Process novel RNA using RNAcmap-style iterative approach"""
         from .rnacmap_style import build_custom_cm, iterative_msa_refinement
         
-        # Build custom covariance model
+        # Build custom covariance model (skip calibration for speed)
         cm_path = build_custom_cm(
             rna,
             self.output_dir,
-            n_cpu=self.n_cpu
+            n_cpu=self.n_cpu,
+            calibrate=False  # Skip slow calibration for testing
         )
         
         # Iterative MSA refinement
@@ -242,6 +244,10 @@ class RNAMSAPipeline:
             n_iterations=3,
             n_cpu=self.n_cpu
         )
+        
+        # Fail if MSA depth is too low (< 5 sequences means no real homologs)
+        if msa_depth < 5:
+            raise ValueError(f"Insufficient MSA depth ({msa_depth} sequences). Need at least 5 homologs for meaningful alignment.")
         
         return {
             'msa_path': str(msa_path),
@@ -333,48 +339,5 @@ class RNAMSAPipeline:
             result = self.process_rna(rna)
             results[rna.id] = result
         
-        # Extract 2D features for all successful MSAs
-        if output_features_path:
-            self._extract_all_features(results, output_features_path)
-        
         return results
-    
-    def _extract_all_features(self, results: Dict, output_path: Path):
-        """Extract 2D features from all MSAs"""
-        from .feature_extraction import extract_2d_features
-        import numpy as np
-        
-        features_dict = {}
-        
-        for rna_id, result in results.items():
-            if not result.get('success'):
-                continue
-            
-            try:
-                if 'domains' in result:
-                    # Handle domain-split RNAs
-                    domain_features = []
-                    for domain_result in result['domains']:
-                        if 'msa_path' in domain_result:
-                            feats = extract_2d_features(domain_result['msa_path'])
-                            domain_features.append(feats)
-                    if domain_features:
-                        features_dict[rna_id] = domain_features
-                
-                elif 'msa_path' in result:
-                    # Regular MSA
-                    features = extract_2d_features(result['msa_path'])
-                    features_dict[rna_id] = features
-                
-                elif 'structure' in result:
-                    # Single-sequence features
-                    from .feature_extraction import structure_to_features
-                    features = structure_to_features(result['structure'])
-                    features_dict[rna_id] = features
-                    
-            except Exception as e:
-                logger.error(f"Failed to extract features for {rna_id}: {e}")
-        
-        # Save as NPZ
-        np.savez_compressed(output_path, **features_dict)
-        logger.info(f"Saved 2D features for {len(features_dict)} RNAs to {output_path}")
+

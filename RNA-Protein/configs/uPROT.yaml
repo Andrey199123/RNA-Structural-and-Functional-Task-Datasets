@@ -2,7 +2,7 @@ experiment_name: "baseline_rpi7317_uPROT"
 data:
   dataset_name: "rpi7317"
   splits_dir: "data/interim/rpi7317_splits"
-  split_type: "uPROT"  # <- unknown-Protein
+  split_type: "uPROT"
   pairs_train: "{splits_dir}/{split_type}_train.csv"
   pairs_val:   "{splits_dir}/{split_type}_val.csv"
   pairs_test:  "{splits_dir}/{split_type}_test.csv"

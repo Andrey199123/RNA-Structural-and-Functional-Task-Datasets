@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+# This is from Phase 1 (ZHMolGraph Replication, not part of RNA MSA pipeline)
 import argparse
 from pathlib import Path
 import numpy as np

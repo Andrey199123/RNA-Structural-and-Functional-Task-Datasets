@@ -37,21 +37,21 @@ def main():
     parser.add_argument(
         "--rna_fasta",
         type=Path,
-        default=Path("data/raw/RPI7317_IncRNA_sequence.fasta"),
+        default=Path("RNA-Protein/data/RPI7317/RPI7317_IncRNA_sequence.fasta"),
         help="Path to RNA sequences FASTA file"
     )
     
     parser.add_argument(
         "--output_dir",
         type=Path,
-        default=Path("data/rna_msa_output"),
+        default=Path("RNA-Protein/data/rna_msa_output"),
         help="Output directory for MSAs and features"
     )
     
     parser.add_argument(
         "--output_features",
         type=Path,
-        default=Path("data/embeddings/rna_2d_features_rpi7317.npz"),
+        default=Path("RNA-Protein/data/embeddings/rna_2d_features_rpi7317.npz"),
         help="Output path for 2D feature embeddings"
     )
     
@@ -99,6 +99,12 @@ def main():
         "--test_mode",
         action="store_true",
         help="Test mode: process only first 5 sequences"
+    )
+    
+    parser.add_argument(
+        "--allow_fallback",
+        action="store_true",
+        help="Allow fallback to single-sequence strategy on failure (default: False for research)"
     )
     
     args = parser.parse_args()
@@ -179,7 +185,7 @@ def main():
         logger.info(f"\n[{i}/{len(sequences)}] Processing {rna.id} ({rna.length} nt)")
         
         try:
-            result = pipeline.process_rna(rna)
+            result = pipeline.process_rna(rna, force_strategy=not args.allow_fallback)
             results[rna.id] = result
             
             if result['success']:
@@ -247,22 +253,6 @@ def main():
         json.dump(json_results, f, indent=2)
     
     logger.info(f"\nResults summary saved to: {summary_file}")
-    
-    # Extract 2D features
-    if success_count > 0:
-        logger.info("=" * 80)
-        logger.info("Extracting 2D features...")
-        logger.info("=" * 80)
-        
-        try:
-            pipeline._extract_all_features(results, args.output_features)
-            logger.info(f"✓ Features saved to: {args.output_features}")
-        except Exception as e:
-            logger.error(f"✗ Feature extraction failed: {e}")
-    
-    logger.info("=" * 80)
-    logger.info("Pipeline completed!")
-    logger.info("=" * 80)
     
     return 0
 

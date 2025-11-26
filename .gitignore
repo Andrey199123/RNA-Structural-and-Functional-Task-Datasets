@@ -45,10 +45,32 @@ Thumbs.db
 *.hdf5
 
 # Large database files
-RNA-Protein/data/databases/Rfam.cm
-RNA-Protein/data/databases/Rfam.cm.*
-RNA-Protein/data/databases/Rfam.seed
-RNA-Protein/data/databases/rfam_sequences.fasta
+RNA-Protein/data/rfam/Rfam.cm
+RNA-Protein/data/rfam/Rfam.cm.*
+RNA-Protein/data/rfam/Rfam.seed
+RNA-Protein/data/rfam/rfam_sequences.fasta
+
+# RNAcentral database (30GB)
+RNA-Protein/data/rnacentral/
+**/rnacentral_active.fasta*
+
+# BLAST database files
+*.nhr
+*.nin
+*.nsq
+*.ndb
+*.not
+*.ntf
+*.nto
+
+# Large test output directories
+RNA-Protein/data/rna_msa_comprehensive_test/
+RNA-Protein/data/rna_msa_rnacentral_test/
+RNA-Protein/data/rna_msa_test/
+
+# Model checkpoints
+RNA-Protein/checkpoints/
+RNA-Protein/model_saves/
 
 # Logs
 *.log
@@ -61,9 +83,9 @@ RNA-Protein/data/databases/rfam_sequences.fasta
 *.sh
 
 # Output directories
-data/rna_msa_output/
-data/strategy_comparison/
-data/embeddings/*.npz
+test_output/
+RNA-Protein/data/rna_msa_output/
+RNA-Protein/data/strategy_comparison/
 
 # Keep structure but ignore large files
 !.gitkeep

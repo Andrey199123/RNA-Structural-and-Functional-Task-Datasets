@@ -13,7 +13,6 @@ data:
 embeddings:
   rna_npz:  "data/embeddings/rna_fm_rpi7317.npz"
   prot_npz: "data/embeddings/esm2_35m_rpi7317.npz"
-   # <-- use the file you just created
 
 
 model:

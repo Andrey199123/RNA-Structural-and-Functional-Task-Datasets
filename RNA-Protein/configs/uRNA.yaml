@@ -2,13 +2,13 @@ experiment_name: "baseline_rpi7317_uRNA"
 data:
   dataset_name: "rpi7317"
   splits_dir: "data/interim/rpi7317_splits"
-  split_type: "uRNA"   # <- unknown-RNA
+  split_type: "uRNA"
   pairs_train: "{splits_dir}/{split_type}_train.csv"
   pairs_val:   "{splits_dir}/{split_type}_val.csv"
   pairs_test:  "{splits_dir}/{split_type}_test.csv"
 embeddings:
   rna_npz:  "data/embeddings/rna_fm_rpi7317.npz"
-  prot_npz: "data/embeddings/esm2_8m_rpi7317.npz"   # <-- use your actual protein .npz path
+  prot_npz: "data/embeddings/esm2_8m_rpi7317.npz"
 model:
   hidden_dim: 128
   out_dim: 128

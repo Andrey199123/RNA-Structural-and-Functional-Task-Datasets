@@ -10,7 +10,7 @@ from torch import nn, optim
 from tqdm import trange
 
 THIS = Path(__file__).resolve()
-SRC = THIS.parents[1]
+SRC = THIS.parent
 if str(SRC) not in sys.path:
     sys.path.append(str(SRC))
 
@@ -145,7 +145,7 @@ def main():
     cfg.setdefault("model", {})
     cfg["runtime"].setdefault("seed", 42)
     cfg["runtime"].setdefault("log_every", 1)
-    cfg["runtime"].setdefault("ckpt_dir", "checkpoints")
+    cfg["runtime"].setdefault("ckpt_dir", "model_saves")
     cfg["runtime"].setdefault("device", "auto")
     cfg["train"].setdefault("epochs", 30)
     cfg["train"].setdefault("batch_size", 1024)
