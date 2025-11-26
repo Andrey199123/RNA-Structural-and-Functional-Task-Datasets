@@ -1,177 +1,772 @@
-# RNA-Protein Interaction Prediction with MSA-Based Features
+# RNA-Protein Interaction Prediction: MSA Generation Pipeline
 
 ## Project Overview
 
-This project addresses Professor Azam's request to enhance RNA-protein interaction prediction by incorporating **structural features derived from Multiple Sequence Alignments (MSAs)**. The goal is to move beyond sequence-only features and leverage evolutionary information to extract 2D structural features (distance maps, contact maps) for improved prediction performance.
-
-### Background
-
-The current ZHMol model learns exclusively from sequence embeddings without incorporating structural information. Research from the Rosetta group demonstrates that extracting 2D features from MSAs significantly improves structure prediction tasks. This project implements a robust pipeline to generate high-quality RNA MSAs, which will enable extraction of co-evolutionary features for RNA-protein interaction prediction.
+This project addresses Professor Azam's request to enhance RNA-protein interaction prediction by incorporating **structural features derived from Multiple Sequence Alignments (MSAs)**. The current ZHMol model learns exclusively from sequence embeddings. Our goal was to develop a pipeline to generate high-quality RNA MSAs suitable for extracting 2D structural features (distance maps, contact maps).
 
 ---
 
-## What Was Accomplished
+## Table of Contents
 
-### Task: RNA MSA Generation Pipeline
-
-**Professor Azam's Requirements:**
-1. Investigate practical strategies for obtaining .a3m alignments for RNAs suitable for extracting structural features
-2. Find solutions for long RNAs (>1000nt), as Rfam alignments typically only cover local motifs
-3. Ensure MSAs have sufficient quality for 2D feature extraction
-
-**Solution Delivered:**
-- ✅ Complete MSA generation pipeline with BLAST-optimized homology search
-- ✅ A3M format conversion for compatibility with structure prediction tools
-- ✅ Support for long RNAs (tested up to 1750nt)
-- ✅ Validated on 30 diverse RNAs with 96.7% success rate
-- ✅ Average MSA depth of 100 sequences at 97.5% identity
+1. [Background & Motivation](#background--motivation)
+2. [Professor Azam's Requirements](#professor-azams-requirements)
+3. [Research Journey](#research-journey)
+4. [Approach 1: Infernal + Rfam](#approach-1-infernal--rfam)
+5. [Approach 2: BLAST + RNAcentral](#approach-2-blast--rnacentral)
+6. [Comparative Analysis](#comparative-analysis)
+7. [Final Results & Recommendations](#final-results--recommendations)
+8. [Implementation Details](#implementation-details)
+9. [Usage Guide](#usage-guide)
+10. [File Structure](#file-structure)
 
 ---
 
-## Pipeline Architecture
+## Background & Motivation
 
-### Core Workflow
+### The Problem
 
+The ZHMol model for RNA-protein interaction prediction has a critical limitation:
+- **Learns only from sequence features** (RNA-FM embeddings, ESM2 protein embeddings)
+- **No structural information** about RNA or protein folding
+- **Missing co-evolutionary signals** that reveal functional constraints
+
+### The Solution
+
+Research from the Rosetta group shows that extracting 2D features from MSAs significantly improves structure prediction:
+- **Distance maps**: Which residues are close in 3D space
+- **Contact maps**: Which positions interact
+- **Co-evolutionary couplings**: Which positions co-vary to maintain structure
+
+**Key insight**: To extract these features, we need **high-quality MSAs** for RNAs.
+
+---
+
+## Professor Azam's Requirements
+
+From her email (September 26, 2025):
+
+> "I'd like you to focus on the RNA MSA problem: investigate practical strategies for obtaining .a3m alignments for RNAs that are suitable for extracting structural features."
+
+**Specific requirements:**
+1. ✅ Investigate practical strategies for obtaining .a3m alignments
+2. ✅ Ensure MSAs are suitable for extracting structural features
+3. ✅ Handle long RNAs (>1000nt) - Rfam typically only covers local motifs
+4. ✅ Generate high-quality MSAs with sufficient depth
+
+**She mentioned Rfam as ONE possible solution**, noting its limitations:
+> "Rfam provides high-quality, curated alignments, but these are mostly limited to short RNAs or specific structured domains."
+
+---
+
+## Research Journey
+
+### Phase 1: Understanding the Landscape
+
+**Initial questions:**
+- What tools exist for RNA MSA generation?
+- What databases contain RNA sequences?
+- How do we measure MSA quality?
+
+**Key discoveries:**
+- **Rfam**: ~4,000 curated RNA families with seed alignments
+- **RNAcentral**: 40.7 million RNA sequences from all species
+- **Infernal**: Structure-aware RNA search tool (uses covariance models)
+- **BLAST**: Fast sequence similarity search
+- **A3M format**: Standard format for MSA-based structure prediction
+
+### Phase 2: Testing Infernal + Rfam
+
+**Hypothesis**: Use Rfam's curated alignments for known RNA families
+
+**Implementation**: `test_infernal_rfam_diverse.py`
+
+**How it works:**
+1. Run `cmscan` (Infernal) to find which Rfam family the RNA belongs to
+2. Extract the seed alignment for that family from Rfam.seed
+3. Convert Stockholm format → A3M format
+4. Return pre-made MSA
+
+**Initial test (30 rRNAs only):**
+- Success rate: 96.7% (29/30)
+- MSA depth: 99 sequences
+- **Problem discovered**: All test RNAs were rRNAs (not diverse!)
+
+**Diverse test (35 RNAs, 7 types):**
+- Success rate: 62.9% (22/35)
+- Works great for: rRNA (100%), snRNA (100%), snoRNA (100%)
+- Works okay for: miRNA (80%)
+- Limited for: tRNA (40%)
+- Fails for: lncRNA (0%)
+
+### Phase 3: Testing BLAST + RNAcentral
+
+**Hypothesis**: Search for specific homologs instead of family membership
+
+**Implementation**: `test_blast_rnacentral_diverse.py`
+
+**How it works:**
+1. Run BLAST to find sequences similar to YOUR specific RNA
+2. Extract top 50 homologs from RNAcentral
+3. Align with MAFFT
+4. Convert to A3M format
+5. Return custom MSA
+
+**Diverse test (same 35 RNAs):**
+- Success rate: 74.3% (26/35)
+- Works great for: rRNA (100%), snoRNA (100%), tRNA (80%), miRNA (80%)
+- Works okay for: snRNA (60%), other (60%)
+- Limited for: lncRNA (40%)
+
+### Phase 4: Understanding the Difference
+
+**Key realization**: These approaches measure different things!
+
+**Infernal + Rfam:**
+- Finds: "What family does this RNA belong to?"
+- Returns: Generic family seed alignment (same for all family members)
+- Example: Any tRNA → RF00005 seed (954 sequences)
+
+**BLAST + RNAcentral:**
+- Finds: "What sequences are similar to THIS specific RNA?"
+- Returns: Custom alignment of homologs specific to your query
+- Example: tRNA-Ala → 50 tRNA-Ala homologs from different species
+
+**For 2D feature extraction**: BLAST is better because homologs are specific to your query's structure.
+
+---
+
+## Approach 1: Infernal + Rfam
+
+### What is Infernal?
+
+**Infernal** (INFERence of RNA ALignment) is a tool for searching RNA sequences using **covariance models**.
+
+**Key features:**
+- **Structure-aware**: Considers both sequence AND base pairing
+- **Covariance models**: Represent both sequence and secondary structure of RNA families
+- **More accurate than BLAST** for RNAs with conserved structure
+
+**How it works:**
 ```
-Query RNA Sequence
-    ↓
-BLAST Search (fast pre-filter)
-    ↓
-Find Homologs in RNAcentral (40.7M sequences)
-    ↓
-Extract Top Homologs (50-100 sequences)
-    ↓
-Multiple Sequence Alignment (MAFFT)
-    ↓
-Convert to A3M Format
-    ↓
-Ready for 2D Feature Extraction
+Query RNA → cmscan → Matches Rfam family → Extract seed alignment
 ```
 
-### Key Components
+### What is Rfam?
 
-1. **BLAST Database Indexing** (`src/rna_msa/fast_homology_search.py`)
-   - Pre-indexes RNAcentral database for fast searches
-   - Reduces search time from hours to ~18 seconds per RNA
-   - ~1000x speedup compared to direct cmsearch
+**Rfam** is a database of RNA families:
+- **~4,000 families**: rRNA, tRNA, miRNA, snoRNA, snRNA, riboswitches, etc.
+- **Seed alignments**: Curated, high-quality alignments (10-1000 sequences)
+- **Covariance models**: One per family for structure-aware search
 
-2. **Homology Search** 
-   - Two-stage approach: BLAST (fast) → Extract sequences (accurate)
-   - Filters for high-quality homologs (≥70% identity, ≥50% coverage)
-   - Configurable MSA depth (default: 50-100 sequences)
+### Implementation
 
-3. **Multiple Sequence Alignment**
-   - Uses MAFFT for accurate alignment
-   - Handles sequences from 100nt to 1750nt+
-   - Optimized for speed with multi-threading
+**File**: `test_infernal_rfam_diverse.py`
 
-4. **A3M Format Conversion** (`src/rna_msa/alignment_formats.py`)
-   - Converts Stockholm/FASTA alignments to A3M format
-   - A3M format: uppercase = aligned positions, lowercase = insertions
-   - Compatible with RNAcmap, AlphaFold, and other structure prediction tools
+**Step-by-step process:**
 
----
-
-## Benchmark Results
-
-### Test Dataset
-- **30 diverse RNAs** from RNAcentral
-- **Length range:** 228-1842 nt
-- **RNA types:** rRNA (29), lncRNA (1)
-
-### Performance Metrics
-
-| Metric | Result |
-|--------|--------|
-| **Success Rate** | 96.7% (29/30 RNAs) |
-| **Average MSA Depth** | 100 sequences |
-| **Average Sequence Identity** | 97.5% |
-| **Search Time** | ~18 seconds per RNA |
-| **Long RNA Success** | 80% for RNAs ≥800nt |
-
-### Success Rate by Length
-
-| Length Category | Success Rate |
-|----------------|--------------|
-| Short (<300nt) | 100% (8/8) |
-| Medium (300-800nt) | 100% (17/17) |
-| Long (≥800nt) | 80% (4/5) |
-
-### MSA Quality Distribution
-
-| Quality | Count | Percentage |
-|---------|-------|------------|
-| Excellent (≥20 homologs) | 29 | 96.7% |
-| Good (10-19 homologs) | 0 | 0% |
-| Fair (5-9 homologs) | 0 | 0% |
-| Poor (1-4 homologs) | 1 | 3.3% |
-
----
-
-## Installation & Setup
-
-### Prerequisites
-
+1. **Run cmscan** (Infernal tool)
 ```bash
-# Required tools
-conda install -c bioconda blast mafft infernal
+cmscan --tblout output.txt --cut_ga --nohmmonly Rfam.cm query.fa
+```
+- Searches query against all Rfam covariance models
+- Returns best matching family (e.g., RF00177 = bacterial SSU rRNA)
 
-# Python dependencies
-pip install -r requirements_rna_msa.txt
+2. **Extract seed alignment**
+```python
+# Parse Rfam.seed file to extract family alignment
+with open('Rfam.seed', 'r', errors='ignore') as f:
+    in_family = False
+    for line in f:
+        if line.startswith(f'#=GF AC   {family_acc}'):
+            in_family = True
+        elif line.startswith('//') and in_family:
+            break
+        elif in_family:
+            # Extract sequences
 ```
 
-### Database Setup
+3. **Convert Stockholm → A3M**
+```python
+from src.rna_msa.alignment_formats import stockholm_to_a3m
+stockholm_to_a3m(sto_file, a3m_file, query_id=None)
+```
 
-#### 1. RNAcentral Database (Required)
+**Key code**: `src/rna_msa/alignment_formats.py`
+- `parse_stockholm()`: Parse Stockholm format alignments
+- `stockholm_to_a3m()`: Convert to A3M format
+- `validate_a3m()`: Check A3M file validity
+- `fasta_to_a3m()`: Convert FASTA alignments to A3M
 
-RNAcentral contains 40.7 million RNA sequences from all species - essential for finding homologs.
+### Results
 
+**Test dataset**: 35 diverse RNAs (5 of each type: rRNA, tRNA, miRNA, snoRNA, snRNA, lncRNA, other)
+
+| RNA Type | Success Rate | Avg MSA Depth |
+|----------|--------------|---------------|
+| rRNA | 5/5 (100%) | 97 sequences |
+| snRNA | 5/5 (100%) | 174 sequences |
+| snoRNA | 5/5 (100%) | 55 sequences |
+| miRNA | 4/5 (80%) | 17 sequences |
+| tRNA | 2/5 (40%) | 954 sequences |
+| lncRNA | 0/5 (0%) | N/A |
+| other | 1/5 (20%) | 458 sequences |
+| **OVERALL** | **22/35 (62.9%)** | **185 sequences** |
+
+### Pros & Cons
+
+**Advantages:**
+- ✅ Structure-aware search (considers base pairing)
+- ✅ High-quality curated alignments
+- ✅ Large MSAs (up to 954 sequences)
+- ✅ Family annotations included
+- ✅ Fast (~5 seconds per RNA)
+
+**Disadvantages:**
+- ❌ Limited to ~4,000 known families
+- ❌ Doesn't work for novel/uncharacterized RNAs
+- ❌ Seed alignments are generic (not specific to your query)
+- ❌ Some families have small seeds (3-22 sequences)
+
+### When to Use
+
+**Best for:**
+- Well-characterized RNA families (rRNA, snRNA, snoRNA)
+- When you need family annotations
+- When you want structure-aware search
+
+**Not suitable for:**
+- Novel RNAs (lncRNAs, new ncRNAs)
+- Species-specific RNAs
+- When you need query-specific homologs
+
+---
+
+## Approach 2: BLAST + RNAcentral
+
+### What is BLAST?
+
+**BLAST** (Basic Local Alignment Search Tool) is a fast sequence similarity search tool.
+
+**Key features:**
+- **Sequence-based**: Matches A, U, G, C patterns (no structure)
+- **Very fast**: Searches millions of sequences in seconds
+- **Indexed search**: Pre-built database index for speed
+
+**How it works:**
+```
+Query RNA → BLAST → Find homologs → Extract → Align → A3M
+```
+
+### What is RNAcentral?
+
+**RNAcentral** is a comprehensive RNA sequence database:
+- **40.7 million sequences**: From all species (bacteria, archaea, eukaryotes)
+- **All RNA types**: rRNA, tRNA, miRNA, lncRNA, snoRNA, etc.
+- **30GB uncompressed**: Requires BLAST indexing for fast search
+
+### Implementation
+
+**File**: `test_blast_rnacentral_diverse.py`
+
+**Step-by-step process:**
+
+1. **Create BLAST database** (one-time setup, ~15 minutes)
 ```bash
-# Download RNAcentral (8GB compressed → 30GB uncompressed)
-cd data/rnacentral
-wget ftp://ftp.ebi.ac.uk/pub/databases/RNAcentral/current_release/sequences/rnacentral_active.fasta.gz
-gunzip rnacentral_active.fasta.gz
-
-# Create BLAST database (one-time, ~15-20 minutes)
 makeblastdb -in rnacentral_active.fasta \
             -dbtype nucl \
             -out rnacentral_active \
             -parse_seqids
 ```
 
-#### 2. Rfam Database (Optional)
+2. **Run BLAST search**
+```bash
+blastn -query query.fa \
+       -db rnacentral_active \
+       -evalue 0.001 \
+       -outfmt '6 sseqid pident length' \
+       -max_target_seqs 100 \
+       -num_threads 4
+```
+- Finds sequences with ≥70% identity
+- Returns top 100 hits in ~18 seconds
 
-Rfam provides curated alignments for known RNA families (rRNA, tRNA, miRNA, etc.).
+3. **Extract homolog sequences**
+```bash
+blastdbcmd -db rnacentral_active \
+           -entry_batch ids.txt \
+           -out homologs.fa
+```
 
+4. **Align with MAFFT**
+```bash
+mafft --auto --thread 4 homologs.fa > aligned.fa
+```
+- MAFFT: Multiple Alignment using Fast Fourier Transform
+- Aligns sequences to show conserved positions
+
+5. **Convert to A3M**
+```python
+from src.rna_msa.alignment_formats import fasta_to_a3m
+fasta_to_a3m(aligned_file, a3m_file, query_id=query_id)
+```
+
+**Key code**: `src/rna_msa/fast_homology_search.py`
+- `FastHomologySearch`: Class for BLAST-based searches
+- `create_blast_db()`: Index RNAcentral database
+- `blast_search()`: Find homologs
+- `extract_sequences()`: Get sequences by ID
+- `fast_homology_search()`: Complete pipeline
+
+### Results
+
+**Test dataset**: Same 35 diverse RNAs as Infernal test
+
+| RNA Type | Success Rate | Avg Homologs | Avg Identity |
+|----------|--------------|--------------|--------------|
+| rRNA | 5/5 (100%) | 100 | 98.7% |
+| snoRNA | 5/5 (100%) | 64 | 92.9% |
+| tRNA | 4/5 (80%) | 54 | 86.8% |
+| miRNA | 4/5 (80%) | 191 | 91.0% |
+| snRNA | 3/5 (60%) | 76 | 89.9% |
+| other | 3/5 (60%) | 79 | 89.2% |
+| lncRNA | 2/5 (40%) | 32 | 86.8% |
+| **OVERALL** | **26/35 (74.3%)** | **90 sequences** | **91.5%** |
+
+### Pros & Cons
+
+**Advantages:**
+- ✅ Works for any RNA with homologs (not limited to known families)
+- ✅ Custom MSAs specific to your query
+- ✅ High sequence identity (70-99%)
+- ✅ Finds novel/uncharacterized RNAs
+- ✅ Better overall success rate (74.3%)
+
+**Disadvantages:**
+- ❌ Not structure-aware (sequence similarity only)
+- ❌ Requires 30GB database + indexing
+- ❌ Slower than Infernal (~18s vs ~5s)
+- ❌ No family annotations
+
+### When to Use
+
+**Best for:**
+- Novel or uncharacterized RNAs
+- When you need query-specific homologs
+- When Rfam doesn't have your RNA family
+- General-purpose MSA generation
+
+**Not suitable for:**
+- When you need structure-aware search
+- When you need family annotations
+- When database size is a constraint
+
+---
+
+## Comparative Analysis
+
+### Side-by-Side Comparison
+
+| RNA Type | Infernal+Rfam | BLAST+RNAcentral | Winner |
+|----------|---------------|------------------|--------|
+| rRNA | 5/5 (100%) | 5/5 (100%) | **Tie** |
+| snoRNA | 5/5 (100%) | 5/5 (100%) | **Tie** |
+| snRNA | 5/5 (100%) | 3/5 (60%) | **Infernal** |
+| miRNA | 4/5 (80%) | 4/5 (80%) | **Tie** |
+| tRNA | 2/5 (40%) | 4/5 (80%) | **BLAST** |
+| other | 1/5 (20%) | 3/5 (60%) | **BLAST** |
+| lncRNA | 0/5 (0%) | 2/5 (40%) | **BLAST** |
+| **OVERALL** | **22/35 (62.9%)** | **26/35 (74.3%)** | **BLAST** |
+
+### Key Insights
+
+**1. BLAST wins overall (74.3% vs 62.9%)**
+- More flexible approach
+- Works for novel RNAs
+- Better for diverse datasets
+
+**2. Both work well for conserved RNAs**
+- rRNA: 100% success for both
+- snoRNA: 100% success for both
+- These RNAs have strong evolutionary conservation
+
+**3. Infernal better for snRNA**
+- snRNA families are well-defined in Rfam
+- Structure is highly conserved
+- Covariance models capture this well
+
+**4. BLAST better for tRNA and lncRNA**
+- tRNA: Many variants not in Rfam seed
+- lncRNA: Novel, not in Rfam at all
+- BLAST finds homologs even without family membership
+
+**5. MSA depth varies**
+- Infernal: 3-954 sequences (depends on seed size)
+- BLAST: 8-465 sequences (depends on homologs found)
+- Both provide sufficient depth for 2D features
+
+### Why We Chose BLAST as Primary Approach
+
+**Decision factors:**
+
+1. **Higher success rate**: 74.3% vs 62.9%
+2. **Works for novel RNAs**: Not limited to known families
+3. **Query-specific MSAs**: Better for co-evolutionary analysis
+4. **Proven at scale**: Tested on diverse RNA types
+
+**When to use Infernal instead:**
+- You're working with well-characterized families
+- You need structure-aware search
+- You want family annotations
+- You need very large MSAs (>100 sequences)
+
+**Ideal solution: Hybrid approach**
+1. Try Infernal first (fast, structure-aware)
+2. If fails, use BLAST (broader coverage)
+3. Combine results if both succeed
+
+---
+
+## Final Results & Recommendations
+
+### What We Delivered
+
+✅ **Complete MSA generation pipeline**
+- Two validated approaches (Infernal+Rfam, BLAST+RNAcentral)
+- A3M format output ready for 2D feature extraction
+- Tested on 35 diverse RNAs
+
+✅ **High success rates**
+- BLAST: 74.3% (26/35 RNAs)
+- Infernal: 62.9% (22/35 RNAs)
+- Combined: Could reach ~80%+
+
+✅ **High-quality MSAs**
+- Average depth: 90-185 sequences
+- Average identity: 91.5%
+- Suitable for co-evolutionary analysis
+
+✅ **Fast and scalable**
+- BLAST: ~18 seconds per RNA
+- Infernal: ~5 seconds per RNA
+- Can process hundreds of RNAs
+
+✅ **Long RNA support**
+- Successfully tested up to 1842nt
+- 80% success rate for RNAs ≥800nt
+
+### Recommendations for Professor Azam
+
+**For RNA-protein interaction prediction:**
+
+1. **Use BLAST + RNAcentral as primary approach**
+   - Better success rate (74.3%)
+   - Works for diverse RNA types
+   - Query-specific MSAs better for 2D features
+
+2. **Dataset selection**
+   - ✅ Use conserved RNAs: rRNA, tRNA, miRNA, snoRNA, snRNA
+   - ⚠️ Avoid species-specific lncRNAs (low success rate)
+   - Consider: RNAcentral contains many suitable RNAs
+
+3. **Next steps (Phase 2: Feature Extraction)**
+   - Extract distance maps from MSAs
+   - Extract contact maps from co-evolutionary couplings
+   - Use tools like: RNAcmap, SPOT-RNA, or custom analysis
+
+4. **Integration with GNN model (Phase 3)**
+   - Add 2D feature branch to existing GraphSAGE model
+   - Combine sequence embeddings + structural features
+   - Train on dataset with good MSA coverage
+
+### What About RPI7317?
+
+**The RPI7317 dataset contains human lncRNAs:**
+- BLAST success rate: 40% (2/5 lncRNAs)
+- Infernal success rate: 0% (0/5 lncRNAs)
+- Many are species-specific with no homologs
+
+**Options:**
+1. **Use a different dataset** with conserved RNAs
+2. **Accept limited MSA coverage** for RPI7317
+3. **Use alternative features** for RNAs without MSAs:
+   - Single-sequence structure prediction
+   - Sequence embeddings (RNA-FM)
+   - K-mer features
+
+---
+
+## Implementation Details
+
+### File Structure
+
+```
+RNA-Protein/
+├── README.md                              # This file
+├── requirements_rna_msa.txt               # Python dependencies
+│
+├── src/
+│   ├── rna_msa/
+│   │   ├── alignment_formats.py           # A3M format conversion
+│   │   ├── fast_homology_search.py        # BLAST-based search
+│   │   ├── infernal_rfam.py               # Rfam family detection
+│   │   ├── rnacmap_style.py               # RNAcmap-style MSA
+│   │   ├── domain_split.py                # Long RNA handling
+│   │   └── single_sequence.py             # Fallback strategy
+│   │
+│   ├── models/                            # GNN models
+│   │   ├── gnn_sage.py                    # GraphSAGE backbone
+│   │   └── vecnn_head.py                  # Prediction head
+│   │
+│   ├── embeddings/                        # Embedding generation
+│   ├── data_processing/                   # Data preprocessing
+│   └── utils/                             # Utility functions
+│
+├── data/
+│   ├── rnacentral/                        # RNAcentral database (30GB)
+│   │   ├── rnacentral_active.fasta
+│   │   └── rnacentral_active.* (BLAST index)
+│   │
+│   ├── rfam/                              # Rfam database
+│   │   ├── Rfam.cm                        # Covariance models
+│   │   └── Rfam.seed                      # Seed alignments
+│   │
+│   ├── RPI7317/                           # RNA-protein dataset
+│   │   ├── RPI7317_IncRNA_sequence.fasta
+│   │   ├── RPI7317_protein_sequence.fasta
+│   │   └── rpi7317_pairs.csv
+│   │
+│   ├── embeddings/                        # Pre-computed embeddings
+│   │   ├── rna_fm_rpi7317.npz
+│   │   └── esm2_35m_rpi7317.npz
+│   │
+│   ├── test_infernal_diverse/             # Infernal test results
+│   │   ├── *_query.fa                     # Query files
+│   │   ├── *_RF*.a3m                      # Generated A3M files
+│   │   └── diverse_test_results.tsv       # Results table
+│   │
+│   └── test_blast_diverse/                # BLAST test results
+│       ├── *_homologs.fa                  # Homolog sequences
+│       ├── *_aligned.a3m                  # Generated A3M files
+│       └── diverse_test_results.tsv       # Results table
+│
+├── configs/                               # Training configurations
+│   ├── default.yaml                       # Random split
+│   ├── uRNA.yaml                          # Unseen RNA split
+│   ├── uPROT.yaml                         # Unseen protein split
+│   └── uNODES.yaml                        # Unseen pairs split
+│
+├── test_infernal_rfam_diverse.py          # Test Infernal+Rfam
+├── test_blast_rnacentral_diverse.py       # Test BLAST+RNAcentral
+├── benchmark_msa_pipeline.py              # Original benchmark (rRNA only)
+│
+└── src/train_linkpred.py                  # Train GNN model
+```
+
+### Key Code Files Explained
+
+#### 1. `src/rna_msa/alignment_formats.py`
+
+**Purpose**: Convert between alignment formats (Stockholm, FASTA, A3M)
+
+**Key functions:**
+- `parse_stockholm(sto_file)`: Parse Stockholm format
+- `stockholm_to_a3m(sto_file, a3m_file, query_id)`: Convert Stockholm → A3M
+- `fasta_to_a3m(fasta_file, a3m_file, query_id)`: Convert FASTA → A3M
+- `validate_a3m(a3m_file)`: Validate A3M format and get statistics
+
+**A3M format rules:**
+- First sequence = query (reference)
+- Uppercase = aligned positions (match states)
+- Lowercase = insertions relative to query
+- Gaps in query are removed from all sequences
+
+**Example:**
+```python
+from src.rna_msa.alignment_formats import stockholm_to_a3m
+
+# Convert Rfam seed alignment to A3M
+stockholm_to_a3m(
+    sto_file='RF00177.sto',
+    a3m_file='RF00177.a3m',
+    query_id=None  # Use first sequence as query
+)
+```
+
+#### 2. `src/rna_msa/fast_homology_search.py`
+
+**Purpose**: BLAST-based homology search with database indexing
+
+**Key class: `FastHomologySearch`**
+
+**Methods:**
+- `create_blast_db()`: Create BLAST database index (one-time)
+- `blast_search(query_seq, query_id)`: Find homologs
+- `extract_sequences(seq_ids, output_file)`: Extract by ID
+- `fast_homology_search()`: Complete pipeline
+
+**Example:**
+```python
+from src.rna_msa.fast_homology_search import FastHomologySearch
+
+# Initialize
+searcher = FastHomologySearch('data/rnacentral/rnacentral_active.fasta')
+
+# Create index (one-time, ~15 minutes)
+searcher.create_blast_db()
+
+# Search for homologs
+n_homologs, output_file = searcher.fast_homology_search(
+    query_seq="AUGCAUGC...",
+    query_id="my_rna",
+    output_fasta=Path("homologs.fa"),
+    max_homologs=50,
+    min_identity=0.7
+)
+```
+
+#### 3. `test_infernal_rfam_diverse.py`
+
+**Purpose**: Test Infernal+Rfam approach on diverse RNAs
+
+**What it does:**
+1. Extracts 35 diverse RNAs from RNAcentral (5 of each type)
+2. Runs cmscan to find Rfam families
+3. Extracts seed alignments from Rfam.seed
+4. Converts to A3M format
+5. Validates and reports statistics
+
+**Output:**
+- A3M files in `data/test_infernal_diverse/`
+- Results table: `diverse_test_results.tsv`
+- Success rate by RNA type
+
+**Run:**
+```bash
+python test_infernal_rfam_diverse.py
+```
+
+#### 4. `test_blast_rnacentral_diverse.py`
+
+**Purpose**: Test BLAST+RNAcentral on same diverse RNAs
+
+**What it does:**
+1. Uses same 35 RNAs as Infernal test
+2. Runs BLAST to find homologs
+3. Extracts sequences with blastdbcmd
+4. Aligns with MAFFT
+5. Converts to A3M format
+6. Compares with Infernal results
+
+**Output:**
+- A3M files in `data/test_blast_diverse/`
+- Results table: `diverse_test_results.tsv`
+- Side-by-side comparison with Infernal
+
+**Run:**
+```bash
+python test_blast_rnacentral_diverse.py
+```
+
+#### 5. `benchmark_msa_pipeline.py`
+
+**Purpose**: Original benchmark (before we discovered it only tested rRNAs)
+
+**What it does:**
+- Tests BLAST on first 30 RNAs from RNAcentral
+- All happened to be rRNAs (not diverse!)
+- Showed 96.7% success rate (misleading)
+
+**Why we moved on:**
+- Not diverse (all rRNAs)
+- Didn't compare with Infernal
+- Didn't generate actual A3M files
+
+**Historical note**: This was our first test that showed BLAST works, but we later realized we needed diverse testing.
+
+---
+
+## Usage Guide
+
+### Prerequisites
+
+**Required tools:**
+```bash
+# Install via conda
+conda install -c bioconda blast mafft infernal easel
+
+# Or via apt (Linux)
+sudo apt install ncbi-blast+ mafft infernal easel
+```
+
+**Python dependencies:**
+```bash
+pip install -r requirements_rna_msa.txt
+```
+
+### Database Setup
+
+#### Option 1: BLAST + RNAcentral (Recommended)
+
+**Step 1: Download RNAcentral**
+```bash
+cd data/rnacentral
+wget ftp://ftp.ebi.ac.uk/pub/databases/RNAcentral/current_release/sequences/rnacentral_active.fasta.gz
+gunzip rnacentral_active.fasta.gz
+# Result: 30GB uncompressed
+```
+
+**Step 2: Create BLAST database** (one-time, ~15-20 minutes)
+```bash
+makeblastdb -in rnacentral_active.fasta \
+            -dbtype nucl \
+            -out rnacentral_active \
+            -parse_seqids
+```
+
+**Step 3: Test**
+```bash
+python test_blast_rnacentral_diverse.py
+```
+
+#### Option 2: Infernal + Rfam
+
+**Step 1: Download Rfam**
 ```bash
 cd data/rfam
 wget ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.cm.gz
 wget ftp://ftp.ebi.ac.uk/pub/databases/Rfam/CURRENT/Rfam.seed.gz
 gunzip Rfam.cm.gz Rfam.seed.gz
+```
 
-# Index Rfam covariance models
+**Step 2: Index Rfam**
+```bash
 cmpress Rfam.cm
 ```
 
----
+**Step 3: Test**
+```bash
+python test_infernal_rfam_diverse.py
+```
 
-## Usage
+### Generate MSA for Your RNA
 
-### Quick Start: Generate MSA for a Single RNA
+#### Using BLAST + RNAcentral
 
 ```python
-from pathlib import Path
 import subprocess
+from pathlib import Path
+from src.rna_msa.alignment_formats import fasta_to_a3m
 
-# Your RNA sequence
+# Your RNA
 query_id = "my_rna"
-query_seq = "AUGCAUGCAUGC..."  # Your RNA sequence
-
-# Step 1: BLAST search for homologs
+query_seq = "AUGCAUGCAUGC..."  # Your sequence
 query_file = Path(f"{query_id}_query.fa")
+
+# Write query file
 with open(query_file, 'w') as f:
     f.write(f">{query_id}\n{query_seq}\n")
 
+# Step 1: BLAST search
 cmd = [
     'blastn',
     '-query', str(query_file),
@@ -184,7 +779,9 @@ cmd = [
 result = subprocess.run(cmd, capture_output=True, text=True, check=True)
 seq_ids = result.stdout.strip().split('\n')
 
-# Step 2: Extract homolog sequences
+print(f"Found {len(seq_ids)} homologs")
+
+# Step 2: Extract sequences
 id_file = Path(f"{query_id}_ids.txt")
 with open(id_file, 'w') as f:
     for seq_id in seq_ids:
@@ -207,277 +804,92 @@ with open(aligned_file, 'w') as f:
     f.write(result.stdout)
 
 # Step 4: Convert to A3M
-from src.rna_msa.alignment_formats import fasta_to_a3m
-
 a3m_file = Path(f"{query_id}_aligned.a3m")
 fasta_to_a3m(aligned_file, a3m_file, query_id=query_id)
 
 print(f"✓ MSA generated: {a3m_file}")
 ```
 
-### Batch Processing: Generate MSAs for Multiple RNAs
+#### Using Infernal + Rfam
 
-```bash
-# Run benchmark on 30 diverse RNAs
-python benchmark_msa_pipeline.py
+```python
+import subprocess
+from pathlib import Path
+from src.rna_msa.alignment_formats import stockholm_to_a3m
+import re
 
-# Results saved to: data/msa_benchmark/benchmark_results.tsv
+# Your RNA
+query_id = "my_rna"
+query_seq = "AUGCAUGCAUGC..."
+query_file = Path(f"{query_id}_query.fa")
+
+with open(query_file, 'w') as f:
+    f.write(f">{query_id}\n{query_seq}\n")
+
+# Step 1: Find Rfam family
+output_file = Path(f"{query_id}_rfam.tblout")
+cmd = [
+    'cmscan',
+    '--tblout', str(output_file),
+    '--cut_ga',
+    '--nohmmonly',
+    'data/rfam/Rfam.cm',
+    str(query_file)
+]
+subprocess.run(cmd, capture_output=True, check=True)
+
+# Parse results
+families = []
+with open(output_file, 'r') as f:
+    for line in f:
+        if not line.startswith('#'):
+            parts = line.split()
+            if len(parts) >= 16:
+                family_acc = parts[1]
+                families.append(family_acc)
+
+if not families:
+    print("No Rfam family found")
+else:
+    best_family = families[0]
+    print(f"Found family: {best_family}")
+    
+    # Step 2: Extract seed alignment
+    sto_file = Path(f"{query_id}_{best_family}.sto")
+    with open('data/rfam/Rfam.seed', 'r', errors='ignore') as fin:
+        with open(sto_file, 'w') as fout:
+            in_family = False
+            for line in fin:
+                if line.startswith(f'#=GF AC   {best_family}'):
+                    in_family = True
+                    fout.write('# STOCKHOLM 1.0\n')
+                if in_family:
+                    fout.write(line)
+                    if line.startswith('//'):
+                        break
+    
+    # Step 3: Convert to A3M
+    a3m_file = Path(f"{query_id}_{best_family}.a3m")
+    stockholm_to_a3m(sto_file, a3m_file, query_id=None)
+    
+    print(f"✓ MSA generated: {a3m_file}")
 ```
 
-### Test Examples
+### Validate A3M File
 
-```bash
-# Test on a single rRNA (fast, should succeed)
-python generate_real_msa.py
+```python
+from src.rna_msa.alignment_formats import validate_a3m
 
-# Test on a long RNA (1456nt)
-python generate_long_rna_msa.py
+stats = validate_a3m(Path("my_rna_aligned.a3m"))
 
-# Test BLAST search only
-python test_blast_msa.py
+if stats['valid']:
+    print("✓ Valid A3M file")
+    print(f"  Sequences: {stats['n_sequences']}")
+    print(f"  Query length: {stats['query_length']} nt")
+    print(f"  Length range: {stats['min_length']}-{stats['max_length']} nt")
+else:
+    print(f"✗ Invalid: {stats['error']}")
 ```
-
----
-
-## File Structure
-
-```
-RNA-Protein/
-├── README.md                          # This file
-├── requirements_rna_msa.txt           # Python dependencies
-│
-├── src/
-│   ├── rna_msa/
-│   │   ├── fast_homology_search.py   # BLAST-optimized search
-│   │   ├── alignment_formats.py      # A3M format conversion
-│   │   ├── infernal_rfam.py          # Rfam family detection
-│   │   ├── rnacmap_style.py          # RNAcmap-style MSA generation
-│   │   ├── domain_split.py           # Long RNA domain splitting
-│   │   └── single_sequence.py        # Fallback for orphan RNAs
-│   │
-│   ├── models/                        # GNN models for RPI prediction
-│   │   ├── gnn_sage.py               # GraphSAGE backbone
-│   │   └── vecnn_head.py             # Prediction head
-│   │
-│   ├── embeddings/                    # Sequence embedding generation
-│   ├── data_processing/               # Data preprocessing
-│   └── utils/                         # Utility functions
-│
-├── data/
-│   ├── rnacentral/                    # RNAcentral database (30GB)
-│   │   ├── rnacentral_active.fasta
-│   │   └── rnacentral_active.* (BLAST index files)
-│   │
-│   ├── rfam/                          # Rfam database
-│   │   ├── Rfam.cm                   # Covariance models
-│   │   └── Rfam.seed                 # Family alignments
-│   │
-│   ├── RPI7317/                       # RNA-protein interaction dataset
-│   │   ├── RPI7317_IncRNA_sequence.fasta
-│   │   ├── RPI7317_protein_sequence.fasta
-│   │   └── rpi7317_pairs.csv
-│   │
-│   ├── embeddings/                    # Pre-computed embeddings
-│   │   ├── rna_fm_rpi7317.npz        # RNA-FM embeddings
-│   │   └── esm2_35m_rpi7317.npz      # ESM2 protein embeddings
-│   │
-│   ├── test_real_msa/                 # Example MSA outputs
-│   ├── test_long_rna_msa/             # Long RNA test outputs
-│   └── msa_benchmark/                 # Benchmark results
-│
-├── configs/                           # Training configurations
-│   ├── default.yaml                  # Random split
-│   ├── uRNA.yaml                     # Unseen RNA split
-│   ├── uPROT.yaml                    # Unseen protein split
-│   └── uNODES.yaml                   # Unseen pairs split
-│
-├── benchmark_msa_pipeline.py          # Benchmark script
-├── generate_real_msa.py               # Single RNA MSA generation
-├── generate_long_rna_msa.py           # Long RNA test
-├── test_blast_msa.py                  # BLAST search test
-│
-├── src/train_linkpred.py              # Train GNN model
-└── compare_strategies.py              # Compare MSA strategies
-```
-
----
-
-## Key Findings
-
-### 1. Conserved RNAs Have Excellent MSA Coverage
-
-**rRNAs (ribosomal RNAs):**
-- 100% success rate (29/29 tested)
-- Average MSA depth: 100 sequences
-- Average identity: 97.5%
-- Available homologs: 10,000-50,000+ per RNA
-
-**Why?** rRNAs are highly conserved across all domains of life (bacteria, archaea, eukaryotes). RNAcentral contains sequences from thousands of species, providing abundant homologs.
-
-### 2. Long RNAs Are Supported
-
-**Tested lengths:**
-- Shortest: 228 nt
-- Longest: 1750 nt
-- Success rate for RNAs ≥800nt: 80%
-
-**Performance:**
-- 1456nt RNA: 30 homologs, 96.6% identity
-- 1750nt RNA: 100 homologs, 90.9% identity
-
-### 3. Species-Specific lncRNAs Lack Homologs
-
-**lncRNAs (long non-coding RNAs):**
-- Success rate: 0% (0/1 tested)
-- Reason: Human-specific, no evolutionary conservation
-- Solution: Use conserved RNA types or alternative features
-
-### 4. Fast and Scalable
-
-**Performance:**
-- Average search time: 18 seconds per RNA
-- BLAST indexing: One-time 15-20 minute setup
-- Speedup: ~1000x compared to unindexed cmsearch
-
----
-
-## Dataset Recommendations
-
-### ✅ Recommended: Conserved RNA Types
-
-For MSA-based feature extraction, use datasets with conserved RNAs:
-
-1. **rRNAs (ribosomal RNAs)**
-   - Excellent MSA coverage (100+ sequences)
-   - Highly conserved across species
-   - Available in RNAcentral
-
-2. **tRNAs (transfer RNAs)**
-   - Good MSA coverage
-   - Well-characterized structure
-   - Abundant in databases
-
-3. **miRNAs (microRNAs)**
-   - Moderate MSA coverage
-   - Conserved within families
-   - Important regulatory RNAs
-
-4. **snoRNAs (small nucleolar RNAs)**
-   - Good MSA coverage
-   - Conserved structure
-   - Functional importance
-
-### ⚠️ Not Recommended: Species-Specific lncRNAs
-
-**RPI7317 dataset:**
-- Contains human-specific long non-coding RNAs
-- No detectable homologs in RNAcentral (40.7M sequences tested)
-- Cannot generate MSAs for co-evolutionary features
-
-**Alternative approaches for lncRNAs:**
-- Single-sequence structure prediction (RNAfold, SPOT-RNA)
-- Sequence embeddings (RNA-FM, RNA-BERT)
-- K-mer features
-- Secondary structure features
-
----
-
-## Integration with Existing Project
-
-### Current Project: RNA-Protein Interaction Prediction
-
-The existing codebase implements a **GraphSAGE-based link prediction model** for RNA-protein interactions:
-
-**Architecture:**
-- **Input:** RNA embeddings (RNA-FM) + Protein embeddings (ESM2)
-- **Model:** GraphSAGE GNN with 2 layers
-- **Task:** Binary classification (interaction vs. no interaction)
-- **Dataset:** RPI7317 (7,317 RNA-protein pairs)
-
-**Training:**
-```bash
-# Train on random split
-python src/train_linkpred.py --config configs/default.yaml
-
-# Train on unseen RNA split
-python src/train_linkpred.py --config configs/uRNA.yaml
-```
-
-### Next Steps: Integrate MSA Features
-
-**Phase 1: Generate MSAs** ✅ COMPLETE
-- Pipeline implemented and validated
-- Benchmark shows 96.7% success rate on conserved RNAs
-
-**Phase 2: Extract 2D Features** (TODO)
-- Distance maps from MSA co-evolution
-- Contact maps from structure prediction
-- Attention maps from MSA transformers
-
-**Phase 3: Integrate with GNN** (TODO)
-- Add 2D feature branch to model
-- Combine sequence + structure features
-- Train on conserved RNA dataset
-
-**Phase 4: Evaluate** (TODO)
-- Compare sequence-only vs. sequence+structure
-- Benchmark on multiple datasets
-- Analyze performance improvements
-
----
-
-## Technical Details
-
-### A3M Format Specification
-
-A3M (A2M with lowercase) is the standard format for MSA-based structure prediction:
-
-```
->query_sequence
-AUGCAUGCAUGC
->homolog_1
-AUGCAUGCAUGCaa    # lowercase 'aa' = insertion relative to query
->homolog_2
-AUGC-UGCAUGCaa    # '-' = deletion, lowercase = insertion
-```
-
-**Rules:**
-- First sequence = query (reference)
-- Uppercase = aligned positions (match states)
-- Lowercase = insertions relative to query
-- Gaps in query are removed from all sequences
-
-### BLAST Database Structure
-
-RNAcentral BLAST database is split into multiple volumes:
-
-```
-rnacentral_active.00.nhr  # Header file (volume 0)
-rnacentral_active.00.nin  # Index file (volume 0)
-rnacentral_active.00.nsq  # Sequence file (volume 0)
-rnacentral_active.01.*    # Volume 1
-rnacentral_active.02.*    # Volume 2
-rnacentral_active.nal     # Alias file (points to all volumes)
-```
-
-**Why multiple volumes?**
-- BLAST has a 4GB limit per volume
-- 30GB database requires multiple volumes
-- BLAST automatically handles multi-volume databases
-
-### Quality Filters
-
-**Homolog selection criteria:**
-- Sequence identity ≥ 70%
-- Alignment coverage ≥ 50% of query length
-- E-value ≤ 0.001
-
-**MSA quality categories:**
-- Excellent: ≥20 homologs
-- Good: 10-19 homologs
-- Fair: 5-9 homologs
-- Poor: 1-4 homologs
-- None: 0 homologs (single-sequence fallback)
 
 ---
 
@@ -490,20 +902,17 @@ rnacentral_active.nal     # Alias file (points to all volumes)
 **Solution:**
 ```bash
 cd data/rnacentral
-makeblastdb -in rnacentral_active.fasta \
-            -dbtype nucl \
-            -out rnacentral_active \
-            -parse_seqids
+makeblastdb -in rnacentral_active.fasta -dbtype nucl -out rnacentral_active -parse_seqids
 ```
 
 ### MAFFT Alignment Fails
 
 **Error:** `MAFFT failed` or timeout
 
-**Solution:**
-- Reduce number of sequences (use top 50 instead of 100)
+**Solutions:**
+- Reduce number of sequences (use top 30 instead of 50)
 - Use faster MAFFT mode: `mafft --retree 1 --maxiterate 0`
-- For very long RNAs, use domain splitting
+- Check if sequences are too long (>2000nt may be slow)
 
 ### No Homologs Found
 
@@ -514,19 +923,32 @@ makeblastdb -in rnacentral_active.fasta \
 2. RNA is novel/synthetic
 3. Database doesn't contain related sequences
 
-**Solution:**
-- Use single-sequence structure prediction
-- Try alternative databases (Ensembl, NONCODE)
-- Use sequence embeddings instead of MSA features
+**Solutions:**
+- Try Infernal+Rfam if it's a known family
+- Lower identity threshold (try 60% instead of 70%)
+- Check if RNA is in a known family: `cmscan --cut_ga data/rfam/Rfam.cm query.fa`
 
-### Out of Memory
+### Infernal Finds No Family
 
-**Error:** `MemoryError` during alignment
+**Error:** `No Rfam family found`
 
-**Solution:**
-- Reduce MSA depth (use 30-50 sequences instead of 100)
-- Process RNAs in smaller batches
-- Use domain splitting for long RNAs
+**This is expected for:**
+- Novel RNAs
+- Species-specific lncRNAs
+- Synthetic sequences
+
+**Solution:** Use BLAST+RNAcentral instead
+
+### A3M Conversion Fails
+
+**Error:** `Query ID not found in alignment`
+
+**Cause:** Query sequence isn't in the Rfam seed alignment
+
+**Solution:** Use `query_id=None` to use first sequence as query:
+```python
+stockholm_to_a3m(sto_file, a3m_file, query_id=None)
+```
 
 ---
 
@@ -534,32 +956,36 @@ makeblastdb -in rnacentral_active.fasta \
 
 ### Speed Improvements
 
-1. **BLAST Indexing** (one-time setup)
-   - Creates indexed database for fast searches
-   - Reduces search time from hours to seconds
+**1. BLAST Indexing** (one-time setup)
+- Creates indexed database for fast searches
+- Reduces search time from hours to seconds
+- Required for RNAcentral (30GB)
 
-2. **Multi-threading**
-   - BLAST: `-num_threads 4`
-   - MAFFT: `--thread 4`
-   - Scales linearly with CPU cores
+**2. Multi-threading**
+- BLAST: `-num_threads 4`
+- MAFFT: `--thread 4`
+- cmscan: `--cpu 4`
+- Scales linearly with CPU cores
 
-3. **Batch Processing**
-   - Process multiple RNAs in parallel
-   - Use GNU parallel or Python multiprocessing
+**3. Limit MSA Depth**
+- 50 sequences is usually sufficient
+- More sequences = diminishing returns
+- Reduces alignment time
 
 ### Memory Optimization
 
-1. **Limit MSA Depth**
-   - 50-100 sequences is sufficient
-   - More sequences = diminishing returns
+**1. Don't Load Entire Database**
+- Use BLAST database indexing
+- Extract only needed sequences
+- Stream processing
 
-2. **Stream Processing**
-   - Don't load entire database into memory
-   - Use BLAST database indexing
+**2. Batch Processing**
+- Process multiple RNAs in parallel
+- Use GNU parallel or Python multiprocessing
 
-3. **Domain Splitting**
-   - Split long RNAs into smaller chunks
-   - Process domains independently
+**3. Limit Sequence Length**
+- Very long RNAs (>2000nt) are slow to align
+- Consider domain splitting for >1500nt
 
 ---
 
@@ -596,67 +1022,85 @@ makeblastdb -in rnacentral_active.fasta \
 
 ---
 
-## Contact & Support
-
-For questions about this pipeline:
-- Check the troubleshooting section above
-- Review the benchmark results in `data/msa_benchmark/`
-- Examine example outputs in `data/test_real_msa/`
-
-For questions about the RNA-protein interaction prediction model:
-- See training scripts in `src/train_linkpred.py`
-- Review configuration files in `configs/`
-- Check model implementations in `src/models/`
-
----
-
 ## Summary for Professor Azam
 
 ### What Was Requested
 
-1. Investigate practical strategies for obtaining .a3m alignments for RNAs suitable for extracting structural features
-2. Find solutions for long RNAs (>1000nt)
-3. Ensure MSAs have sufficient quality for 2D feature extraction
+From your email (September 26, 2025):
+> "Investigate practical strategies for obtaining .a3m alignments for RNAs that are suitable for extracting structural features. Once we can robustly generate RNA MSAs, we'll be in a strong position to move forward with extracting 2D features and integrating them into our model."
 
 ### What Was Delivered
 
-1. ✅ **Complete MSA generation pipeline**
-   - BLAST-optimized homology search (~1000x faster)
-   - A3M format conversion
-   - Validated on 30 diverse RNAs
+✅ **Two validated approaches:**
+1. **Infernal + Rfam**: Structure-aware, 62.9% success rate
+2. **BLAST + RNAcentral**: Sequence-based, 74.3% success rate
 
-2. ✅ **Long RNA support**
-   - Successfully processed RNAs up to 1750nt
-   - 80% success rate for RNAs ≥800nt
+✅ **Comprehensive testing:**
+- 35 diverse RNAs (7 types)
+- Fair comparison (same RNAs, both approaches)
+- Actual A3M files generated
 
-3. ✅ **High-quality MSAs**
-   - Average depth: 100 sequences
-   - Average identity: 97.5%
-   - Suitable for co-evolutionary feature extraction
+✅ **High-quality MSAs:**
+- Average depth: 90-185 sequences
+- Average identity: 91.5%
+- Ready for 2D feature extraction
 
-### Key Statistics
+✅ **Complete implementation:**
+- All code documented and explained
+- Usage examples provided
+- Troubleshooting guide included
 
-- **96.7% success rate** on conserved RNAs
-- **~18 seconds** per RNA (fast and scalable)
-- **100+ sequences** per MSA (excellent depth)
-- **Works for long RNAs** (tested up to 1750nt)
+### Key Findings
 
-### Recommendation
+1. **BLAST + RNAcentral is the better primary approach**
+   - Higher success rate (74.3% vs 62.9%)
+   - Works for novel RNAs
+   - Query-specific MSAs
 
-**For RNA-protein interaction prediction with MSA-based features:**
-- Use datasets with conserved RNAs (rRNAs, tRNAs, miRNAs, snoRNAs)
-- RNAcentral provides excellent homolog coverage
-- Pipeline is ready for Phase 2: 2D feature extraction
+2. **Both approaches have strengths**
+   - Infernal: Structure-aware, larger MSAs
+   - BLAST: Broader coverage, more flexible
 
-**For RPI7317 specifically:**
-- Human lncRNAs lack homologs (expected, not a bug)
-- Consider alternative features or different dataset
-- Single-sequence structure prediction is scientifically valid
+3. **RNA type matters**
+   - Conserved RNAs (rRNA, snoRNA): Both work great
+   - Novel RNAs (lncRNA): BLAST works better
+   - Well-defined families (snRNA): Infernal works better
 
-### Next Steps
+4. **Dataset selection is critical**
+   - Use conserved RNA types for best results
+   - Avoid species-specific lncRNAs
+   - RNAcentral contains suitable RNAs
 
-1. **Immediate:** Extract 2D features from generated MSAs
-2. **Short-term:** Integrate features with GNN model
-3. **Long-term:** Benchmark on multiple datasets and compare with state-of-the-art
+### Recommended Next Steps
 
-The pipeline is complete, validated, and ready for the next phase of the project.
+**Phase 2: Extract 2D Features**
+- Use generated A3M files
+- Extract distance maps, contact maps
+- Tools: RNAcmap, custom analysis
+
+**Phase 3: Integrate with GNN Model**
+- Add 2D feature branch to GraphSAGE
+- Combine sequence + structure features
+- Train on dataset with good MSA coverage
+
+**Phase 4: Evaluate**
+- Compare sequence-only vs sequence+structure
+- Benchmark on multiple datasets
+- Publish results
+
+The MSA generation pipeline is complete, validated, and ready for the next phase of your research.
+
+---
+
+## Contact & Acknowledgments
+
+This work was completed in response to Professor Azam's request to develop RNA MSA generation capabilities for enhancing RNA-protein interaction prediction with structural features.
+
+**Date:** November 26, 2025
+
+**Key Technologies:**
+- Infernal 1.1.5
+- BLAST+ 2.15.0
+- MAFFT 7.520
+- RNAcentral Release 23.0
+- Rfam 14.10

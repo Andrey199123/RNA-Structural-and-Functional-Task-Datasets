@@ -1,0 +1,16 @@
+#target name           accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#--------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+SSU_rRNA_bacteria      RF00177   URS00014DDDE7        -          cm      338      795        1      440      + 5'&3'    4 0.50   0.0  392.0  2.9e-123 !   Bacterial small subunit ribosomal RNA
+SSU_rRNA_archaea       RF01959   URS00014DDDE7        -          cm      322      746        1      440      + 5'&3'    4 0.50   0.0  231.2   1.3e-66 !   Archaeal small subunit ribosomal RNA
+SSU_rRNA_microsporidia RF02542   URS00014DDDE7        -          cm      274      678        1      440      + 5'&3'    4 0.50   0.0  146.7   4.6e-43 !   Microsporidia small subunit ribosomal RNA
+SSU_rRNA_eukarya       RF01960   URS00014DDDE7        -          cm      415     1025        1      440      + 5'&3'    4 0.50   0.0   83.5   7.1e-23 !   Eukaryotic small subunit ribosomal RNA
+#
+# Program:         cmscan
+# Version:         1.1.5 (Sep 2023)
+# Pipeline mode:   SCAN
+# Query file:      data/msa_benchmark/URS00014DDDE7_query.fa
+# Target file:     data/rfam/Rfam.cm
+# Option settings: cmscan --tblout data/test_infernal_rfam/URS00014DDDE7_infernal.tblout --cut_ga --cpu 4 --nohmmonly data/rfam/Rfam.cm data/msa_benchmark/URS00014DDDE7_query.fa 
+# Current dir:     /Users/andreyvasilyev/Downloads/RNA-Protein-Research-Project-main/RNA-Protein
+# Date:            Wed Nov 26 16:00:30 2025
+# [ok]

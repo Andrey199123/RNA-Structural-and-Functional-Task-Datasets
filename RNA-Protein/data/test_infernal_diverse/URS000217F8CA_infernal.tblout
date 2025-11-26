@@ -1,0 +1,13 @@
+#target name         accession query name           accession mdl mdl from   mdl to seq from   seq to strand trunc pass   gc  bias  score   E-value inc description of target
+#------------------- --------- -------------------- --------- --- -------- -------- -------- -------- ------ ----- ---- ---- ----- ------ --------- --- ---------------------
+U6                   RF00026   URS000217F8CA        -          cm        1      105        1      103      +    no    1 0.44   0.0   74.8   6.6e-20 !   U6 spliceosomal RNA
+#
+# Program:         cmscan
+# Version:         1.1.5 (Sep 2023)
+# Pipeline mode:   SCAN
+# Query file:      data/test_infernal_diverse/URS000217F8CA_query.fa
+# Target file:     data/rfam/Rfam.cm
+# Option settings: cmscan --tblout data/test_infernal_diverse/URS000217F8CA_infernal.tblout --cut_ga --cpu 4 --nohmmonly data/rfam/Rfam.cm data/test_infernal_diverse/URS000217F8CA_query.fa 
+# Current dir:     /Users/andreyvasilyev/Downloads/RNA-Protein-Research-Project-main/RNA-Protein
+# Date:            Wed Nov 26 16:19:43 2025
+# [ok]
