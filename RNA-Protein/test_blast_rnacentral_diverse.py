@@ -1,31 +1,12 @@
-#!/usr/bin/env python3
-"""
-Tests BLAST + RNAcentral on the same diverse RNAs as the Infernal test.
-"""
-
 import subprocess
 from pathlib import Path
 import time
 
-print("TESTING BLAST + RNACENTRAL ON DIVERSE RNA TYPES")
-print("Using the SAME RNAs as Infernal test for fair comparison")
-print()
-
 infernal_dir = Path('data/test_infernal_diverse')
-if not infernal_dir.exists():
-    print("Infernal test results not found")
-    print("  Run test_infernal_rfam_diverse.py first")
-    exit(1)
 
 query_files = sorted(infernal_dir.glob('*_query.fa'))
 
-if not query_files:
-    print("No query files found")
-    exit(1)
-
-print(f"Found {len(query_files)} test RNAs from Infernal test")
-print()
-
+# Load RNA info from Infernal results
 infernal_results = {}
 with open(infernal_dir / 'diverse_test_results.tsv', 'r') as f:
     header = f.readline()
@@ -40,20 +21,18 @@ with open(infernal_dir / 'diverse_test_results.tsv', 'r') as f:
                 'length': length
             }
 
-print("RNA types in test:")
 from collections import Counter
 type_counts = Counter(r['type'] for r in infernal_results.values())
 for rna_type, count in sorted(type_counts.items()):
     print(f"  {rna_type}: {count}")
 print()
 
+# Create output directory
 output_dir = Path('data/test_blast_diverse')
 output_dir.mkdir(exist_ok=True)
 
+# Test each RNA with BLAST
 results = []
-
-print("Testing each RNA with BLAST + RNAcentral...")
-print()
 
 for i, query_file in enumerate(query_files, 1):
     rna_id = query_file.stem.replace('_query', '')
@@ -65,10 +44,7 @@ for i, query_file in enumerate(query_files, 1):
     rna_type = rna_info['type']
     length = rna_info['length']
     
-    print(f"[{i}/{len(query_files)}] {rna_id} ({length} nt)")
-    print(f"  Type: {rna_type}")
-    print(f"  Running BLAST...", end='', flush=True)
-    
+    # Run BLAST search
     cmd = [
         'blastn',
         '-query', str(query_file),
@@ -84,6 +60,7 @@ for i, query_file in enumerate(query_files, 1):
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         elapsed = time.time() - start
         
+        # Parse hits
         hits = []
         for line in result.stdout.strip().split('\n'):
             if line:
@@ -91,9 +68,9 @@ for i, query_file in enumerate(query_files, 1):
                 if len(parts) >= 3:
                     seq_id = parts[0]
                     identity = float(parts[1])
-                align_len = int(parts[2])
-                
-                if identity >= 70 and align_len >= length * 0.5:
+                    align_len = int(parts[2])
+
+                    if identity >= 70 and align_len >= length * 0.5:
                         hits.append((seq_id, identity, align_len))
         
         n_homologs = len(hits)
@@ -104,7 +81,7 @@ for i, query_file in enumerate(query_files, 1):
         a3m_file = None
         
         if n_homologs >= 5:
-            print(f"{n_homologs} homologs (avg {avg_identity:.1f}% identity)")
+            print(f" ✓ {n_homologs} homologs (avg {avg_identity:.1f}% identity)")
             print(f"    Generating MSA...", end='', flush=True)
             
             try:
@@ -139,20 +116,20 @@ for i, query_file in enumerate(query_files, 1):
                 stats = validate_a3m(a3m_file)
                 if stats['valid']:
                     msa_generated = True
-                    print(f"A3M generated ({stats['n_sequences']} seqs)")
+                    print(f" A3M generated ({stats['n_sequences']} seqs)")
                 else:
-                    print(f"A3M invalid")
+                    print(f" A3M invalid")
                     
             except Exception as e:
-                print(f"MSA failed: {str(e)[:30]}")
+                print(f" MSA failed: {str(e)[:30]}")
             
             print(f"    Total time: {elapsed:.1f}s")
             success = msa_generated
         elif n_homologs > 0:
-            print(f"Only {n_homologs} homologs (need >=5, {elapsed:.1f}s)")
+            print(f" Only {n_homologs} homologs (need ≥5, {elapsed:.1f}s)")
             success = False
         else:
-            print(f"No homologs found ({elapsed:.1f}s)")
+            print(f" No homologs found ({elapsed:.1f}s)")
             success = False
         
         results.append({
@@ -168,7 +145,7 @@ for i, query_file in enumerate(query_files, 1):
         })
         
     except subprocess.TimeoutExpired:
-        print(f"Timeout")
+        print(f" ✗ Timeout")
         results.append({
             'rna_id': rna_id,
             'rna_type': rna_type,
@@ -179,7 +156,7 @@ for i, query_file in enumerate(query_files, 1):
             'time': 60
         })
     except Exception as e:
-        print(f"Error: {str(e)[:50]}")
+        print(f" ✗ Error: {str(e)[:50]}")
         results.append({
             'rna_id': rna_id,
             'rna_type': rna_type,
@@ -192,8 +169,7 @@ for i, query_file in enumerate(query_files, 1):
     
     print()
 
-print("RESULTS BY RNA TYPE")
-print()
+# Summary by RNA type
 
 by_type = {}
 for r in results:
@@ -221,8 +197,6 @@ for rna_type in sorted(by_type.keys()):
     
     print()
 
-print("OVERALL SUMMARY")
-print()
 
 total = len(results)
 successful = [r for r in results if r['success']]
@@ -233,8 +207,6 @@ msa_generated = sum(1 for r in results if r.get('msa_generated', False))
 
 print(f"Total RNAs tested: {total}")
 print(f"MSAs generated: {msa_generated}/{total} ({msa_generated/total*100:.1f}%)")
-print(f"  (Success = A3M file generated)")
-print()
 
 if successful:
     homolog_counts = [r['n_homologs'] for r in successful]
@@ -245,17 +217,14 @@ if successful:
     print(f"  Min: {min(homolog_counts)}")
     print(f"  Max: {max(homolog_counts)}")
     print(f"  Avg: {sum(homolog_counts)/len(homolog_counts):.1f}")
-    print()
     
     print(f"Sequence Identity:")
     print(f"  Min: {min(identities):.1f}%")
     print(f"  Max: {max(identities):.1f}%")
     print(f"  Avg: {sum(identities)/len(identities):.1f}%")
-    print()
     
     print(f"Search Time:")
     print(f"  Avg: {sum(times)/len(times):.1f}s")
-    print()
 
 # Save results
 results_file = output_dir / 'diverse_test_results.tsv'
@@ -265,11 +234,8 @@ with open(results_file, 'w') as f:
         f.write(f"{r['rna_id']}\t{r['rna_type']}\t{r['length']}\t{r.get('msa_generated', False)}\t{r['n_homologs']}\t{r['avg_identity']:.1f}\t{r.get('a3m_file', 'N/A')}\t{r['time']:.1f}\n")
 
 print(f"Detailed results saved to: {results_file}")
-print()
 
-print("SIDE-BY-SIDE COMPARISON")
-print()
-
+# Load Infernal results for comparison
 infernal_by_type = {}
 with open(infernal_dir / 'diverse_test_results.tsv', 'r') as f:
     header = f.readline()
@@ -307,7 +273,6 @@ for rna_type in sorted(set(list(by_type.keys()) + list(infernal_by_type.keys()))
     
     print(f"{rna_type:<15} {inf_str:<20} {blast_str:<20}")
 
-print()
 print("Overall:")
 inf_total = sum(d['total'] for d in infernal_by_type.values())
 inf_success = sum(d['success'] for d in infernal_by_type.values())
