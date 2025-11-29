@@ -72,28 +72,23 @@ def main():
     df = pd.read_csv(args.pairs_csv)
     rna_col, prot_col = _detect_columns(df)
 
-    # Keep only pairs and drop duplicates
     df = df[[rna_col, prot_col]].rename(columns={rna_col: "rna_id", prot_col: "prot_id"}).drop_duplicates()
 
-    # random split
     tr, va, te = random_edge_split(df, seed=args.seed)
     tr.to_csv(out_dir / "random_train.csv", index=False)
     va.to_csv(out_dir / "random_val.csv", index=False)
     te.to_csv(out_dir / "random_test.csv", index=False)
 
-    # unknown RNA
     tr, va, te = unknown_entity_split(df, "rna_id", seed=args.seed)
     tr.to_csv(out_dir / "uRNA_train.csv", index=False)
     va.to_csv(out_dir / "uRNA_val.csv", index=False)
     te.to_csv(out_dir / "uRNA_test.csv", index=False)
 
-    # unknown Protein
     tr, va, te = unknown_entity_split(df, "prot_id", seed=args.seed)
     tr.to_csv(out_dir / "uPROT_train.csv", index=False)
     va.to_csv(out_dir / "uPROT_val.csv", index=False)
     te.to_csv(out_dir / "uPROT_test.csv", index=False)
 
-    # unknown Nodes
     tr, va, te = unknown_nodes_split(df, seed=args.seed)
     tr.to_csv(out_dir / "uNODES_train.csv", index=False)
     va.to_csv(out_dir / "uNODES_val.csv", index=False)

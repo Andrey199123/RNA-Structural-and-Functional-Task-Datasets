@@ -189,15 +189,12 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
         for train_idx, test_idx in edge_splits:
             train_df = df.iloc[train_idx]
             test_df = df.iloc[test_idx]
-            # Split train into train/val
             val_size = len(train_df) // 10
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
 
     elif split_type == "uRNA":
-
-        # Unknown RNA split
         rnas = df['rna_id'].unique()
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
         rna_splits = list(kf.split(rnas))
@@ -210,15 +207,12 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
             train_df = df[df['rna_id'].isin(train_rnas)]
             test_df = df[df['rna_id'].isin(test_rnas)]
 
-            # Split train into train/val
             val_size = len(train_df) // 10
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
 
     elif split_type == "uPROT":
-
-        # Unknown Protein split
         prots = df['prot_id'].unique()
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
         prot_splits = list(kf.split(prots))
@@ -230,15 +224,12 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
             train_df = df[df['prot_id'].isin(train_prots)]
             test_df = df[df['prot_id'].isin(test_prots)]
 
-            # Split train into train/val
             val_size = len(train_df) // 10
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
             splits.append((train_df.index, val_df.index, test_df.index))
 
     elif split_type == "uNODES":
-
-        # Unknown Nodes split (both RNA and protein held out)
         rnas = df['rna_id'].unique()
         prots = df['prot_id'].unique()
         kf = KFold(n_splits=n_folds, shuffle=True, random_state=cfg["runtime"]["seed"])
@@ -254,7 +245,6 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
             test_prots = set(prots[test_prot_idx])
             train_df = df[df['rna_id'].isin(train_rnas) & df['prot_id'].isin(train_prots)]
             test_df = df[df['rna_id'].isin(test_rnas) & df['prot_id'].isin(test_prots)]
-            # Split train into train/val
             val_size = len(train_df) // 10
             val_df = train_df.sample(n=val_size, random_state=cfg["runtime"]["seed"])
             train_df = train_df.drop(val_df.index)
@@ -263,7 +253,6 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
     else:
         raise ValueError(f"Unknown split type: {split_type}")
     
-    # Run cross-validation
     results = []
     for fold_idx, (train_idx, val_idx, test_idx) in enumerate(splits):
 
@@ -318,21 +307,17 @@ def main():
     
     cfg = yaml.safe_load(Path(args.config).read_text())
     
-    # Set up paths based on dataset
     if args.dataset == "rpi7317":
         cfg["data"]["pairs_csv"] = "data/RPI7317/rpi7317_pairs.csv"
         cfg["embeddings"]["rna_npz"] = "data/embeddings/rna_fm_rpi7317.npz"
         cfg["embeddings"]["prot_npz"] = "data/embeddings/esm2_35m_rpi7317.npz"
     elif args.dataset == "npinter2":
-        # Haven't used NPInter yet but it's here just in case
         cfg["data"]["pairs_csv"] = "data/raw/NPInter10412_dataset.txt"
         cfg["embeddings"]["rna_npz"] = "data/embeddings/rna_fm_npinter2.npz"
         cfg["embeddings"]["prot_npz"] = "data/embeddings/esm2_35m_npinter2.npz"
     
-    # Run cross-validation
     summary = run_cross_validation(args.dataset, args.split_type, cfg)
     
-    # Save results
     if args.output:
         with open(args.output, 'w') as f:
             json.dump(summary, f, indent=2)

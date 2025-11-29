@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Test BLAST + RNAcentral on the SAME diverse RNAs as Infernal test
-Fair comparison: same RNAs, different approaches
+Tests BLAST + RNAcentral on the same diverse RNAs as the Infernal test.
 """
 
 import subprocess
@@ -14,7 +13,6 @@ print("Using the SAME RNAs as Infernal test for fair comparison")
 print("=" * 80)
 print()
 
-# Load the same RNAs that were tested with Infernal
 infernal_dir = Path('data/test_infernal_diverse')
 if not infernal_dir.exists():
     print("✗ Infernal test results not found")
@@ -31,7 +29,6 @@ if not query_files:
 print(f"Found {len(query_files)} test RNAs from Infernal test")
 print()
 
-# Load RNA info from Infernal results
 infernal_results = {}
 with open(infernal_dir / 'diverse_test_results.tsv', 'r') as f:
     header = f.readline()
@@ -53,11 +50,9 @@ for rna_type, count in sorted(type_counts.items()):
     print(f"  {rna_type}: {count}")
 print()
 
-# Create output directory
 output_dir = Path('data/test_blast_diverse')
 output_dir.mkdir(exist_ok=True)
 
-# Test each RNA with BLAST
 results = []
 
 print("Testing each RNA with BLAST + RNAcentral...")
@@ -77,7 +72,6 @@ for i, query_file in enumerate(query_files, 1):
     print(f"  Type: {rna_type}")
     print(f"  Running BLAST...", end='', flush=True)
     
-    # Run BLAST search
     cmd = [
         'blastn',
         '-query', str(query_file),
@@ -93,7 +87,6 @@ for i, query_file in enumerate(query_files, 1):
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         elapsed = time.time() - start
         
-        # Parse hits
         hits = []
         for line in result.stdout.strip().split('\n'):
             if line:

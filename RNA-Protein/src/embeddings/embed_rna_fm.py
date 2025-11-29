@@ -17,22 +17,17 @@ def mean_pool(last_hidden_state, attention_mask):
 
 
 def encode_sequence_in_chunks(tokenizer, model, seq, device, max_len_tokens=900, add_special_tokens=True):
-    """
-    Chunk the raw sequence by length (tokens ~= nucleotides for RNA-FM).
-    Compute a token-weighted mean across chunks so long RNAs are pooled correctly.
-    """
     model.eval()
     total_weighted = None
     total_tokens = 0.0
     with torch.no_grad():
         for i in range(0, len(seq), max_len_tokens):
             chunk = seq[i:i + max_len_tokens]
-            # RnaTokenizer converts T<->U as needed; no manual replace needed.
             enc = tokenizer(chunk, return_tensors="pt",
                             add_special_tokens=add_special_tokens, padding=False, truncation=False)
             enc = {k: v.to(device) for k, v in enc.items()}
-            out = model(**enc).last_hidden_state  # [1, T, H]
-            pooled = mean_pool(out, enc["attention_mask"]).squeeze(0)  # [H]
+            out = model(**enc).last_hidden_state
+            pooled = mean_pool(out, enc["attention_mask"]).squeeze(0)
             n_tokens = float(enc["attention_mask"].sum().item())
             vec = pooled * n_tokens
             total_weighted = vec if total_weighted is None else (total_weighted + vec)
@@ -44,7 +39,7 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--fasta", required=True, help="RNA FASTA file")
     ap.add_argument("--out_npz", required=True)
-    ap.add_argument("--model_name", default="multimolecule/rnafm")  # <- key change
+    ap.add_argument("--model_name", default="multimolecule/rnafm")
     ap.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
     ap.add_argument("--chunk_len", type=int, default=900, help="chunk length (nucleotides) for long RNAs")
     args = ap.parse_args()
@@ -53,13 +48,12 @@ def main():
     tok = RnaTokenizer.from_pretrained(args.model_name)
     mdl = RnaFmModel.from_pretrained(args.model_name).to(device)
 
-    # Read FASTA -> dict
-    raw = read_fasta_to_dict(args.fasta)  # {header: seq}
+    raw = read_fasta_to_dict(args.fasta)
     ids = []
     seqs = {}
     for hdr, s in raw.items():
-        rid = normalize_rna_id(hdr)        # first token
-        seqs[rid] = s                      # tokenizer handles T/U normalization internally
+        rid = normalize_rna_id(hdr)
+        seqs[rid] = s
         ids.append(rid)
 
     out = {}

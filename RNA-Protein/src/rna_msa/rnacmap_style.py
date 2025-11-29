@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-RNAcmap-Style Pipeline
-For novel RNAs without Rfam matches
+Builds custom covariance models for RNAs that don't match known Rfam families.
 """
 
 import subprocess
@@ -14,17 +13,6 @@ logger = logging.getLogger(__name__)
 
 
 def predict_secondary_structure(rna, output_dir: Path, method: str = "spotRNA") -> Tuple[str, Path]:
-    """
-    Predict RNA secondary structure
-    
-    Args:
-        rna: RNASequence object
-        output_dir: Output directory
-        method: Prediction method (spotRNA, RNAfold, etc.)
-        
-    Returns:
-        Tuple of (dot-bracket structure, structure file path)
-    """
     if method == "spotRNA":
         return predict_spotRNA(rna, output_dir)
     elif method == "RNAfold":
@@ -34,23 +22,15 @@ def predict_secondary_structure(rna, output_dir: Path, method: str = "spotRNA") 
 
 
 def predict_spotRNA(rna, output_dir: Path) -> Tuple[str, Path]:
-    """Predict structure using SPOT-RNA"""
-    # Write sequence
     seq_file = output_dir / f"{rna.id}_seq.fa"
     with open(seq_file, 'w') as f:
         f.write(f">{rna.id}\n{rna.sequence}\n")
     
-    # Run SPOT-RNA (placeholder - actual implementation depends on installation)
-    # In practice: python SPOT-RNA.py --input seq_file --output output_dir
-    
     logger.info(f"Predicting structure for {rna.id} using SPOT-RNA")
-    
-    # For now, use RNAfold as fallback
     return predict_RNAfold(rna, output_dir)
 
 
 def predict_RNAfold(rna, output_dir: Path) -> Tuple[str, Path]:
-    """Predict structure using ViennaRNA RNAfold"""
     seq_file = output_dir / f"{rna.id}_seq.fa"
     with open(seq_file, 'w') as f:
         f.write(f">{rna.id}\n{rna.sequence}\n")
@@ -61,12 +41,10 @@ def predict_RNAfold(rna, output_dir: Path) -> Tuple[str, Path]:
         cmd = ["RNAfold", "--noPS", "-i", str(seq_file)]
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         
-        # Parse output
         lines = result.stdout.strip().split('\n')
         structure = None
         for line in lines:
             if line and not line.startswith('>'):
-                # Structure line contains dot-bracket and energy
                 structure = line.split()[0]
                 break
         
@@ -80,7 +58,6 @@ def predict_RNAfold(rna, output_dir: Path) -> Tuple[str, Path]:
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.warning(f"RNAfold failed for {rna.id}: {e}")
     
-    # Fallback: unpaired structure
     structure = '.' * rna.length
     with open(output_file, 'w') as f:
         f.write(f">{rna.id}\n{rna.sequence}\n{structure}\n")
@@ -89,43 +66,23 @@ def predict_RNAfold(rna, output_dir: Path) -> Tuple[str, Path]:
 
 
 def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4, calibrate: bool = False) -> Path:
-    """
-    Build custom covariance model from predicted structure
-    
-    Args:
-        rna: RNASequence object
-        output_dir: Output directory
-        n_cpu: Number of CPUs
-        calibrate: Whether to calibrate CM (slow, but gives better E-values)
-        
-    Returns:
-        Path to covariance model file
-    """
-    # Predict structure
     structure, struct_file = predict_secondary_structure(rna, output_dir)
     
-    # Clean structure - remove any non-structure characters
-    # Valid structure chars: . ( ) < > [ ] { } (and sometimes letters for pseudoknots)
-    # For basic structure, keep only . ( )
     cleaned_structure = ''.join(c if c in '.()' else '.' for c in structure)
     
-    # Ensure structure is same length as sequence
     if len(cleaned_structure) != len(rna.sequence):
         logger.warning(f"Structure length mismatch for {rna.id}, using all unpaired")
         cleaned_structure = '.' * len(rna.sequence)
     
-    # Create Stockholm format alignment (single sequence)
     sto_file = output_dir / f"{rna.id}_single.sto"
     
     with open(sto_file, 'w') as f:
         f.write("# STOCKHOLM 1.0\n")
         f.write(f"#=GF ID {rna.id}\n")
-        # Ensure proper spacing - sequence ID should be exactly as is
         f.write(f"{rna.id} {rna.sequence}\n")
         f.write(f"#=GC SS_cons {cleaned_structure}\n")
         f.write("//\n")
     
-    # Build CM using cmbuild
     cm_file = output_dir / f"{rna.id}_custom.cm"
     
     try:
@@ -133,7 +90,6 @@ def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4, calibrate: bool = Fal
         subprocess.run(cmd, capture_output=True, text=True, check=True)
         logger.info(f"Built custom CM for {rna.id}")
         
-        # Calibrate CM (optional, very slow)
         if calibrate:
             logger.info(f"Calibrating CM for {rna.id} (this may take several minutes)...")
             cmd = ["cmcalibrate", "--cpu", str(n_cpu), str(cm_file)]
@@ -151,32 +107,15 @@ def build_custom_cm(rna, output_dir: Path, n_cpu: int = 4, calibrate: bool = Fal
 
 def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
                    n_cpu: int = 4, evalue_threshold: float = 0.01, use_blast_filter: bool = True) -> Path:
-    """
-    Search for homologs using custom CM with optional BLAST pre-filtering
-    
-    Args:
-        rna: RNASequence object
-        cm_file: Covariance model file
-        sequence_db: Sequence database to search
-        output_dir: Output directory
-        n_cpu: Number of CPUs
-        evalue_threshold: E-value threshold
-        use_blast_filter: Use BLAST for fast pre-filtering (recommended for large databases)
-        
-    Returns:
-        Path to homolog sequences file
-    """
     hits_file = output_dir / f"{rna.id}_homologs.fa"
     tblout_file = output_dir / f"{rna.id}_homologs.tblout"
     
-    # For large databases, use BLAST pre-filtering
-    if use_blast_filter and sequence_db.stat().st_size > 1_000_000_000:  # > 1GB
+    if use_blast_filter and sequence_db.stat().st_size > 1_000_000_000:
         logger.info(f"Large database detected, using BLAST pre-filtering for {rna.id}")
         
         try:
             from .fast_homology_search import FastHomologySearch
             
-            # BLAST search for candidates
             searcher = FastHomologySearch(sequence_db)
             n_homologs, candidates_file = searcher.fast_homology_search(
                 query_seq=rna.sequence,
@@ -188,11 +127,9 @@ def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
             
             if n_homologs == 0:
                 logger.warning(f"No BLAST candidates found for {rna.id}")
-                # Create empty file
                 hits_file.touch()
                 return hits_file
             
-            # Use candidates as search database
             search_db = candidates_file
             logger.info(f"BLAST found {n_homologs} candidates, running cmsearch on subset")
             
@@ -203,7 +140,6 @@ def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
         search_db = sequence_db
     
     try:
-        # Run cmsearch
         cmd = [
             "cmsearch",
             "--cpu", str(n_cpu),
@@ -225,21 +161,9 @@ def search_homologs(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
 
 
 def align_sequences(sequences_file: Path, output_dir: Path, rna_id: str) -> Path:
-    """
-    Align sequences using structure-aware aligner
-    
-    Args:
-        sequences_file: FASTA file with sequences to align
-        output_dir: Output directory
-        rna_id: RNA identifier
-        
-    Returns:
-        Path to alignment file (Stockholm format)
-    """
     aligned_file = output_dir / f"{rna_id}_aligned.sto"
     
     try:
-        # Use MAFFT with RNA-specific options
         cmd = [
             "mafft",
             "--maxiterate", "1000",
@@ -250,7 +174,6 @@ def align_sequences(sequences_file: Path, output_dir: Path, rna_id: str) -> Path
         
         result = subprocess.run(cmd, capture_output=True, text=True, check=True)
         
-        # Convert FASTA output to Stockholm
         with open(aligned_file, 'w') as f:
             f.write("# STOCKHOLM 1.0\n")
             f.write(result.stdout)
@@ -260,7 +183,6 @@ def align_sequences(sequences_file: Path, output_dir: Path, rna_id: str) -> Path
         
     except (subprocess.CalledProcessError, FileNotFoundError) as e:
         logger.warning(f"MAFFT alignment failed for {rna_id}: {e}")
-        # Copy input as-is
         import shutil
         shutil.copy(sequences_file, aligned_file)
     
@@ -268,49 +190,17 @@ def align_sequences(sequences_file: Path, output_dir: Path, rna_id: str) -> Path
 
 
 def refine_structure_from_msa(msa_file: Path, output_dir: Path, rna_id: str) -> str:
-    """
-    Refine secondary structure based on covariation in MSA
-    
-    Args:
-        msa_file: MSA file (Stockholm format)
-        output_dir: Output directory
-        rna_id: RNA identifier
-        
-    Returns:
-        Refined dot-bracket structure
-    """
-    # Use R-scape or similar to detect covarying pairs
-    # For now, return placeholder
     logger.info(f"Refining structure from MSA for {rna_id}")
-    
-    # TODO: Implement R-scape integration
-    # cmd = ["R-scape", "--outdir", str(output_dir), str(msa_file)]
-    
-    return None  # Will use original structure
+    return None
 
 
 def iterative_msa_refinement(rna, cm_file: Path, sequence_db: Path, output_dir: Path,
                              n_iterations: int = 3, n_cpu: int = 4) -> Tuple[Path, int]:
-    """
-    Iteratively refine MSA and structure
-    
-    Args:
-        rna: RNASequence object
-        cm_file: Initial covariance model
-        sequence_db: Sequence database
-        output_dir: Output directory
-        n_iterations: Number of refinement iterations
-        n_cpu: Number of CPUs
-        
-    Returns:
-        Tuple of (final MSA path, MSA depth)
-    """
     current_cm = cm_file
     
     for iteration in range(n_iterations):
         logger.info(f"MSA refinement iteration {iteration + 1}/{n_iterations} for {rna.id}")
         
-        # Search for homologs
         try:
             homologs_file = search_homologs(
                 rna, current_cm, sequence_db, output_dir, n_cpu=n_cpu
@@ -319,10 +209,7 @@ def iterative_msa_refinement(rna, cm_file: Path, sequence_db: Path, output_dir: 
             logger.warning(f"Homolog search failed in iteration {iteration + 1}: {e}")
             break
         
-        # Align sequences
         msa_file = align_sequences(homologs_file, output_dir, f"{rna.id}_iter{iteration}")
-        
-        # Count sequences in MSA
         msa_depth = count_sequences_in_msa(msa_file)
         logger.info(f"MSA depth after iteration {iteration + 1}: {msa_depth}")
         
@@ -330,15 +217,11 @@ def iterative_msa_refinement(rna, cm_file: Path, sequence_db: Path, output_dir: 
             logger.warning(f"Low MSA depth ({msa_depth}), stopping iterations")
             break
         
-        # Refine structure
         refined_structure = refine_structure_from_msa(msa_file, output_dir, rna.id)
         
-        # Rebuild CM if structure was refined
         if refined_structure and iteration < n_iterations - 1:
-            # Update CM for next iteration
             pass
     
-    # Return final MSA
     final_msa = output_dir / f"{rna.id}_final.sto"
     if msa_file.exists():
         import shutil
@@ -348,7 +231,6 @@ def iterative_msa_refinement(rna, cm_file: Path, sequence_db: Path, output_dir: 
 
 
 def count_sequences_in_msa(msa_file: Path) -> int:
-    """Count number of sequences in MSA"""
     count = 0
     with open(msa_file) as f:
         for line in f:

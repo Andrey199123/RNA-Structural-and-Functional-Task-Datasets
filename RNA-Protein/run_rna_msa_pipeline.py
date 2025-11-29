@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Main script to run RNA MSA pipeline on RPI7317 dataset
+Runs the RNA MSA pipeline on a dataset of RNA sequences.
 """
 
 import argparse
@@ -9,7 +9,6 @@ from pathlib import Path
 import sys
 import json
 
-# Add src to path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
 
 from rna_msa.pipeline import RNAMSAPipeline, RNASequence
@@ -17,7 +16,6 @@ from rna_msa.msa_utils import check_dependencies, compute_msa_statistics
 
 
 def setup_logging(verbose: bool = False):
-    """Setup logging configuration"""
     level = logging.DEBUG if verbose else logging.INFO
     logging.basicConfig(
         level=level,

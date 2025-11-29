@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Infernal + Rfam on DIVERSE RNA types from RNAcentral
-Not just rRNAs - include tRNA, miRNA, snoRNA, lncRNA, etc.
+Tests Infernal + Rfam on diverse RNA types from RNAcentral.
 """
 
 import subprocess
@@ -14,7 +13,6 @@ print("TESTING INFERNAL + RFAM ON DIVERSE RNA TYPES")
 print("=" * 80)
 print()
 
-# Check Rfam database
 rfam_cm = Path('data/rfam/Rfam.cm')
 rfam_seed = Path('data/rfam/Rfam.seed')
 
@@ -25,12 +23,10 @@ if not rfam_cm.exists() or not rfam_seed.exists():
 print("✓ Rfam database found")
 print()
 
-# Extract diverse RNA types from RNAcentral
 print("Extracting diverse RNA sample from RNAcentral...")
 print("Looking for different RNA types: rRNA, tRNA, miRNA, snoRNA, lncRNA, etc.")
 print()
 
-# Parse RNAcentral to find different RNA types
 rna_types = {
     'rRNA': [],
     'tRNA': [],
@@ -48,16 +44,13 @@ with open('data/rnacentral/rnacentral_active.fasta', 'r') as f:
     for line in f:
         line = line.strip()
         if line.startswith('>'):
-            # Save previous sequence
             if current_header and current_seq:
                 seq = ''.join(current_seq)
                 seq_len = len(seq)
                 
-                # Only keep sequences 100-2000nt
                 if 100 <= seq_len <= 2000:
                     seq_id = current_header.split()[0][1:]
                     
-                    # Determine RNA type from header
                     header_lower = current_header.lower()
                     rna_type = 'other'
                     
@@ -74,7 +67,6 @@ with open('data/rnacentral/rnacentral_active.fasta', 'r') as f:
                     elif 'lncrna' in header_lower or 'long non-coding' in header_lower:
                         rna_type = 'lncRNA'
                     
-                    # Add to appropriate list (max 5 per type)
                     if len(rna_types[rna_type]) < 5:
                         rna_types[rna_type].append({
                             'id': seq_id,
@@ -83,17 +75,14 @@ with open('data/rnacentral/rnacentral_active.fasta', 'r') as f:
                             'header': current_header
                         })
             
-            # Start new sequence
             current_header = line
             current_seq = []
             
-            # Check if we have enough of each type
             if all(len(rnas) >= 5 for rnas in rna_types.values()):
                 break
         else:
             current_seq.append(line)
 
-# Collect test RNAs
 test_rnas = []
 for rna_type, rnas in rna_types.items():
     test_rnas.extend(rnas)

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Benchmark MSA pipeline on diverse RNAs from RNAcentral
-Test different RNA types and lengths to get statistics
+Tests the MSA pipeline on diverse RNA sequences to see how well it works.
 """
 
 import subprocess
@@ -9,12 +8,9 @@ from pathlib import Path
 import sys
 import time
 
-# Sample diverse RNAs from RNAcentral
-# Mix of different types and lengths
 print("Extracting diverse RNA sample from RNAcentral...")
 print("Getting RNAs of different lengths and types...\n")
 
-# Get a diverse sample: short, medium, long RNAs
 cmd = """
 head -50000 data/rnacentral/rnacentral_active.fasta | \
 awk '
@@ -42,7 +38,6 @@ END {
 result = subprocess.run(cmd, shell=True, capture_output=True, text=True)
 lines = result.stdout.strip().split('\n')
 
-# Parse sequences
 test_rnas = []
 for i in range(0, len(lines), 2):
     if i+1 < len(lines):
@@ -73,7 +68,6 @@ print(f"Selected {len(test_rnas)} test RNAs")
 print(f"Length range: {min(r['length'] for r in test_rnas)}-{max(r['length'] for r in test_rnas)} nt")
 print()
 
-# Count by type
 from collections import Counter
 type_counts = Counter(r['type'] for r in test_rnas)
 print("RNA types:")
@@ -81,7 +75,6 @@ for rna_type, count in type_counts.most_common():
     print(f"  {rna_type}: {count}")
 print()
 
-# Test MSA generation on each
 output_dir = Path('data/msa_benchmark')
 output_dir.mkdir(exist_ok=True)
 
@@ -89,15 +82,13 @@ results = []
 print("Testing MSA generation...")
 print("=" * 80)
 
-for i, rna in enumerate(test_rnas[:30], 1):  # Test first 30 to save time
+for i, rna in enumerate(test_rnas[:30], 1):
     print(f"\n[{i}/30] {rna['id']} ({rna['type']}, {rna['length']} nt)")
     
-    # Write query
     query_file = output_dir / f"{rna['id']}_query.fa"
     with open(query_file, 'w') as f:
         f.write(f">{rna['id']}\n{rna['seq']}\n")
     
-    # BLAST search
     start_time = time.time()
     cmd = [
         'blastn',
@@ -112,7 +103,6 @@ for i, rna in enumerate(test_rnas[:30], 1):  # Test first 30 to save time
     try:
         result = subprocess.run(cmd, capture_output=True, text=True, check=True, timeout=60)
         
-        # Parse hits
         hits = []
         for line in result.stdout.strip().split('\n'):
             if line:
@@ -121,13 +111,11 @@ for i, rna in enumerate(test_rnas[:30], 1):  # Test first 30 to save time
                 identity = float(parts[1])
                 align_len = int(parts[2])
                 
-                # Quality filter: ≥70% identity, ≥50% of query length
                 if identity >= 70 and align_len >= rna['length'] * 0.5:
                     hits.append((seq_id, identity, align_len))
         
         search_time = time.time() - start_time
         
-        # Categorize MSA quality
         n_homologs = len(hits)
         if n_homologs >= 20:
             quality = "Excellent"

@@ -19,13 +19,12 @@ def read_fasta_to_dict(path) -> dict:
     if header is not None: d[header] = "".join(seq)
     return d
 
-_UNIPROT_RE = re.compile(r"^[^|]*\|([A-Z0-9]+)\|")  # sp|Q01844|...
+_UNIPROT_RE = re.compile(r"^[^|]*\|([A-Z0-9]+)\|")
 
 def normalize_prot_id(header: str) -> str:
     m = _UNIPROT_RE.match(header)
     return m.group(1) if m else header.split()[0]
 
-# ---------- tokenization/pooling ----------
 def space_separate(seq: str) -> str:
     return " ".join(list(seq.strip().upper()))
 
@@ -33,7 +32,7 @@ def mean_pool(last_hidden_state, attention_mask):
     mask = attention_mask.unsqueeze(-1).float()
     s = (last_hidden_state * mask).sum(1)
     d = mask.sum(1).clamp(min=1e-9)
-    return s / d  # [B, H]
+    return s / d
 
 def encode_in_chunks(tokenizer, model, seq, device, use_space, max_len=700, add_special_tokens=True):
     model.eval()
@@ -45,8 +44,8 @@ def encode_in_chunks(tokenizer, model, seq, device, use_space, max_len=700, add_
             enc = tokenizer(text, return_tensors="pt", add_special_tokens=add_special_tokens,
                             padding=False, truncation=False)
             enc = {k: v.to(device) for k, v in enc.items()}
-            out = model(**enc).last_hidden_state  # [1, T, H]
-            pooled = mean_pool(out, enc["attention_mask"]).squeeze(0)  # [H]
+            out = model(**enc).last_hidden_state
+            pooled = mean_pool(out, enc["attention_mask"]).squeeze(0)
             n_tokens = float(enc["attention_mask"].sum().item())
             vec = pooled * n_tokens
             total = vec if total is None else total + vec

@@ -1,8 +1,8 @@
-# RNA-Protein Interaction Prediction: MSA Generation Pipeline
+# RNA-Protein Interaction Prediction: MSA Generation Research
 
 ## Project Overview
 
-This project addresses Professor Azam's request to enhance RNA-protein interaction prediction by incorporating **structural features derived from Multiple Sequence Alignments (MSAs)**. The current ZHMol model learns exclusively from sequence embeddings. Our goal was to develop a pipeline to generate high-quality RNA MSAs suitable for extracting 2D structural features (distance maps, contact maps).
+This project addresses Professor Azam's request to **investigate practical strategies** for generating RNA Multiple Sequence Alignments (MSAs) suitable for extracting 2D structural features. The current ZHMol model learns exclusively from sequence embeddings. Our goal was to research, test, and compare different approaches for generating high-quality RNA MSAs that can be used to extract structural features (distance maps, contact maps).
 
 ---
 
@@ -13,11 +13,12 @@ This project addresses Professor Azam's request to enhance RNA-protein interacti
 3. [Research Journey](#research-journey)
 4. [Approach 1: Infernal + Rfam](#approach-1-infernal--rfam)
 5. [Approach 2: BLAST + RNAcentral](#approach-2-blast--rnacentral)
-6. [Comparative Analysis](#comparative-analysis)
-7. [Final Results & Recommendations](#final-results--recommendations)
-8. [Implementation Details](#implementation-details)
-9. [Usage Guide](#usage-guide)
-10. [File Structure](#file-structure)
+6. [Domain Splitting Investigation](#domain-splitting-investigation)
+7. [Comparative Analysis](#comparative-analysis)
+8. [Final Results & Recommendations](#final-results--recommendations)
+9. [Implementation Details](#implementation-details)
+10. [Usage Guide](#usage-guide)
+11. [File Structure](#file-structure)
 
 ---
 
@@ -117,7 +118,25 @@ From her email (September 26, 2025):
 - Works okay for: snRNA (60%), other (60%)
 - Limited for: lncRNA (40%)
 
-### Phase 4: Understanding the Difference
+### Phase 4: Testing Domain Splitting for Long RNAs
+
+**Hypothesis**: Professor Azam suggested splitting long RNAs (>1000nt) into domains since Rfam only covers local motifs
+
+**Implementation**: `test_domain_split_lncrna.py` and `test_domain_split_blast.py`
+
+**How it works:**
+1. Split long RNA into 300nt overlapping windows (50nt overlap)
+2. Test each domain with Infernal+Rfam OR BLAST+RNAcentral
+3. Generate per-domain MSAs
+
+**Results:**
+- **Domain-split + Infernal**: 0% success (0/22 domains found Rfam families)
+- **Domain-split + BLAST**: 0% success (0/22 domains found sufficient homologs)
+- **Full-length BLAST**: 40% success (2/5 lncRNAs)
+
+**Conclusion**: Domain splitting makes things worse, not better. The problem isn't RNA length - it's that lncRNAs are poorly conserved and not in Rfam families. Short 300nt fragments are too specific to find homologs. Full-length BLAST is the best approach for long RNAs.
+
+### Phase 5: Understanding the Difference
 
 **Key realization**: These approaches measure different things!
 
@@ -362,6 +381,58 @@ fasta_to_a3m(aligned_file, a3m_file, query_id=query_id)
 
 ---
 
+## Domain Splitting Investigation
+
+### The Problem with Long RNAs
+
+Professor Azam noted:
+> "Rfam provides high-quality, curated alignments, but these are mostly limited to short RNAs or specific structured domains. When an RNA sequence is long (e.g., >1000 nt), Rfam alignments typically cover only local motifs, while the rest of the sequence remains poorly aligned."
+
+**Hypothesis**: Split long RNAs into ~300nt domains and process each independently.
+
+### Testing Domain Splitting
+
+We tested domain splitting on 5 lncRNAs (478-1842 nt) that failed with full-length approaches:
+
+**Test 1: Domain-split + Infernal+Rfam** (`test_domain_split_lncrna.py`)
+- Split 5 lncRNAs into 22 domains (300nt each, 50nt overlap)
+- Ran Infernal cmscan on each domain
+- **Result**: 0/22 domains (0%) found ANY Rfam family
+
+**Test 2: Domain-split + BLAST+RNAcentral** (`test_domain_split_blast.py`)
+- Same 22 domains
+- Ran BLAST on each domain
+- **Result**: 0/22 domains (0%) found sufficient homologs (≥10)
+
+### Why Domain Splitting Failed
+
+**The fundamental problem**: lncRNAs aren't in Rfam families and are poorly conserved
+
+1. **With Infernal+Rfam:**
+   - Rfam families are for well-characterized, conserved RNA motifs
+   - lncRNAs are novel and not well-characterized
+   - Even 300nt domains don't match any known family
+   - This isn't a "length" problem - it's a "lncRNAs aren't in Rfam" problem
+
+2. **With BLAST+RNAcentral:**
+   - Full-length BLAST can find partial matches across entire sequence
+   - 300nt fragments are too short and too specific
+   - Need near-perfect matches for short sequences
+   - lncRNAs are poorly conserved, so fragments have zero matches
+
+### Comparison: Full-length vs Domain-split
+
+| Approach | lncRNA Success |
+|----------|----------------|
+| Full-length BLAST | 40% (2/5) - Found 19-45 homologs |
+| Full-length Infernal | 0% (0/5) - Not in Rfam |
+| Domain-split + Infernal | 0% (0/22 domains) |
+| Domain-split + BLAST | 0% (0/22 domains) |
+
+**Conclusion**: Domain splitting makes things worse, not better. Full-length BLAST is the best approach for long RNAs.
+
+---
+
 ## Comparative Analysis
 
 ### Side-by-Side Comparison
@@ -430,15 +501,16 @@ fasta_to_a3m(aligned_file, a3m_file, query_id=query_id)
 
 ### What We Delivered
 
-✅ **Complete MSA generation pipeline**
-- Two validated approaches (Infernal+Rfam, BLAST+RNAcentral)
+✅ **Comprehensive research on MSA generation strategies**
+- Two approaches investigated (Infernal+Rfam, BLAST+RNAcentral)
+- Domain splitting strategy tested and evaluated
 - A3M format output ready for 2D feature extraction
-- Tested on 35 diverse RNAs
+- Tested on 35 diverse RNAs + 5 long lncRNAs
 
-✅ **High success rates**
-- BLAST: 74.3% (26/35 RNAs)
-- Infernal: 62.9% (22/35 RNAs)
-- Combined: Could reach ~80%+
+✅ **Clear performance benchmarks**
+- BLAST: 74.3% success (26/35 RNAs)
+- Infernal: 62.9% success (22/35 RNAs)
+- Domain splitting: 0% success for lncRNAs
 
 ✅ **High-quality MSAs**
 - Average depth: 90-185 sequences
@@ -450,33 +522,41 @@ fasta_to_a3m(aligned_file, a3m_file, query_id=query_id)
 - Infernal: ~5 seconds per RNA
 - Can process hundreds of RNAs
 
-✅ **Long RNA support**
+✅ **Long RNA insights**
 - Successfully tested up to 1842nt
-- 80% success rate for RNAs ≥800nt
+- Full-length BLAST works better than domain splitting
+- lncRNAs remain challenging (40% success)
 
 ### Recommendations for Professor Azam
 
-**For RNA-protein interaction prediction:**
+**Key Findings:**
 
 1. **Use BLAST + RNAcentral as primary approach**
-   - Better success rate (74.3%)
+   - Better success rate (74.3% vs 62.9%)
    - Works for diverse RNA types
    - Query-specific MSAs better for 2D features
+   - Handles long RNAs better than domain splitting
 
-2. **Dataset selection**
+2. **Domain splitting is not recommended**
+   - Tested on lncRNAs: 0% success with both Infernal and BLAST
+   - Makes things worse, not better
+   - Full-length approaches work better even for long RNAs
+
+3. **Dataset selection matters**
    - ✅ Use conserved RNAs: rRNA, tRNA, miRNA, snoRNA, snRNA
-   - ⚠️ Avoid species-specific lncRNAs (low success rate)
+   - ⚠️ Avoid species-specific lncRNAs (40% success rate)
    - Consider: RNAcentral contains many suitable RNAs
 
-3. **Next steps (Phase 2: Feature Extraction)**
+4. **Next steps for feature extraction**
+   - Use generated A3M files from BLAST approach
    - Extract distance maps from MSAs
    - Extract contact maps from co-evolutionary couplings
-   - Use tools like: RNAcmap, SPOT-RNA, or custom analysis
+   - Tools: RNAcmap, SPOT-RNA, or custom analysis
 
-4. **Integration with GNN model (Phase 3)**
+5. **For model integration**
    - Add 2D feature branch to existing GraphSAGE model
    - Combine sequence embeddings + structural features
-   - Train on dataset with good MSA coverage
+   - Train on dataset with good MSA coverage (avoid lncRNA-heavy datasets)
 
 ### What About RPI7317?
 
@@ -509,9 +589,9 @@ RNA-Protein/
 │   │   ├── alignment_formats.py           # A3M format conversion
 │   │   ├── fast_homology_search.py        # BLAST-based search
 │   │   ├── infernal_rfam.py               # Rfam family detection
-│   │   ├── rnacmap_style.py               # RNAcmap-style MSA
-│   │   ├── domain_split.py                # Long RNA handling
-│   │   └── single_sequence.py             # Fallback strategy
+│   │   ├── domain_split.py                # Domain splitting utilities
+│   │   ├── rnacmap_style.py               # RNAcmap-style MSA (not used)
+│   │   └── single_sequence.py             # Single-sequence fallback (not used)
 │   │
 │   ├── models/                            # GNN models
 │   │   ├── gnn_sage.py                    # GraphSAGE backbone
@@ -555,9 +635,11 @@ RNA-Protein/
 │   ├── uPROT.yaml                         # Unseen protein split
 │   └── uNODES.yaml                        # Unseen pairs split
 │
-├── test_infernal_rfam_diverse.py          # Test Infernal+Rfam
-├── test_blast_rnacentral_diverse.py       # Test BLAST+RNAcentral
-├── benchmark_msa_pipeline.py              # Original benchmark (rRNA only)
+├── test_infernal_rfam_diverse.py          # Benchmark: Infernal+Rfam
+├── test_blast_rnacentral_diverse.py       # Benchmark: BLAST+RNAcentral
+├── test_domain_split_lncrna.py            # Test: Domain-split + Infernal
+├── test_domain_split_blast.py             # Test: Domain-split + BLAST
+├── benchmark_msa_pipeline.py              # Original benchmark (rRNA only, deprecated)
 │
 └── src/train_linkpred.py                  # Train GNN model
 ```
@@ -1031,22 +1113,28 @@ From your email (September 26, 2025):
 
 ### What Was Delivered
 
-✅ **Two validated approaches:**
+✅ **Research on two MSA generation approaches:**
 1. **Infernal + Rfam**: Structure-aware, 62.9% success rate
-2. **BLAST + RNAcentral**: Sequence-based, 74.3% success rate
+2. **BLAST + RNAcentral**: Sequence-based, 74.3% success rate (recommended)
 
-✅ **Comprehensive testing:**
-- 35 diverse RNAs (7 types)
-- Fair comparison (same RNAs, both approaches)
-- Actual A3M files generated
+✅ **Domain splitting investigation:**
+- Tested on 5 lncRNAs (22 domains total)
+- Both Infernal and BLAST approaches tested
+- Result: 0% success - domain splitting not recommended
+
+✅ **Comprehensive benchmarking:**
+- 35 diverse RNAs (7 types) for main comparison
+- 5 long lncRNAs for domain splitting tests
+- Fair comparison (same RNAs, multiple approaches)
+- Actual A3M files generated and validated
 
 ✅ **High-quality MSAs:**
 - Average depth: 90-185 sequences
 - Average identity: 91.5%
 - Ready for 2D feature extraction
 
-✅ **Complete implementation:**
-- All code documented and explained
+✅ **Complete documentation:**
+- All benchmark scripts documented
 - Usage examples provided
 - Troubleshooting guide included
 
@@ -1071,24 +1159,7 @@ From your email (September 26, 2025):
    - Avoid species-specific lncRNAs
    - RNAcentral contains suitable RNAs
 
-### Recommended Next Steps
-
-**Phase 2: Extract 2D Features**
-- Use generated A3M files
-- Extract distance maps, contact maps
-- Tools: RNAcmap, custom analysis
-
-**Phase 3: Integrate with GNN Model**
-- Add 2D feature branch to GraphSAGE
-- Combine sequence + structure features
-- Train on dataset with good MSA coverage
-
-**Phase 4: Evaluate**
-- Compare sequence-only vs sequence+structure
-- Benchmark on multiple datasets
-- Publish results
-
-The MSA generation pipeline is complete, validated, and ready for the next phase of your research.
+The MSA generation research is complete with clear recommendations: use BLAST+RNAcentral as the primary approach, avoid domain splitting, and focus on conserved RNA types for best results.
 
 ---
 

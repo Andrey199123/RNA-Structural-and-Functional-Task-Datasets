@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Test Infernal + Rfam on the same 30 diverse RNAs from benchmark
-Compare results with existing BLAST benchmark
+Tests Infernal + Rfam on the same 30 diverse RNAs from benchmark.
 """
 
 import subprocess
@@ -14,14 +13,12 @@ print("On 30 Diverse RNAs (same as BLAST benchmark)")
 print("=" * 80)
 print()
 
-# Use the same 30 RNAs from benchmark
 benchmark_dir = Path('data/msa_benchmark')
 query_files = sorted(benchmark_dir.glob('*_query.fa'))[:30]
 
 print(f"Found {len(query_files)} test RNAs")
 print()
 
-# Check Rfam database
 rfam_cm = Path('data/rfam/Rfam.cm')
 rfam_seed = Path('data/rfam/Rfam.seed')
 
@@ -36,7 +33,6 @@ if not rfam_seed.exists():
 print("✓ Rfam database found")
 print()
 
-# Results storage
 results = []
 
 print("Testing each RNA with Infernal + Rfam...")
@@ -45,7 +41,6 @@ print()
 for i, query_file in enumerate(query_files, 1):
     rna_id = query_file.stem.replace('_query', '')
     
-    # Read sequence to get length
     with open(query_file, 'r') as f:
         lines = f.readlines()
         seq = ''.join(line.strip() for line in lines[1:])
@@ -54,7 +49,6 @@ for i, query_file in enumerate(query_files, 1):
     print(f"[{i}/30] {rna_id} ({seq_len} nt)")
     print(f"  Running cmscan...", end='', flush=True)
     
-    # Run Infernal cmscan
     output_dir = Path('data/test_infernal_rfam')
     output_dir.mkdir(exist_ok=True)
     
@@ -63,7 +57,7 @@ for i, query_file in enumerate(query_files, 1):
     cmd = [
         'cmscan',
         '--tblout', str(infernal_out),
-        '--cut_ga',  # Use gathering threshold
+        '--cut_ga',
         '--nohmmonly',
         '--cpu', '4',
         str(rfam_cm),
@@ -75,7 +69,6 @@ for i, query_file in enumerate(query_files, 1):
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
         elapsed = time.time() - start
         
-        # Parse results
         families_found = []
         with open(infernal_out, 'r') as f:
             for line in f:
@@ -84,7 +77,7 @@ for i, query_file in enumerate(query_files, 1):
                 parts = line.split()
                 if len(parts) >= 16:
                     family_name = parts[2]  # Rfam ID
-                    family_acc = parts[1]   # Rfam accession
+                    family_acc = parts[1]
                     evalue = float(parts[15])
                     families_found.append((family_name, family_acc, evalue))
         
@@ -95,7 +88,6 @@ for i, query_file in enumerate(query_files, 1):
             print(f" ✓ Found {len(families_found)} family match(es)")
             print(f"    Best: {best_family} ({best_acc})")
             
-            # Get seed alignment size for best family
             print(f"    Counting sequences in seed alignment...", end='', flush=True)
             try:
                 # Count sequence lines using Python (handles encoding issues)

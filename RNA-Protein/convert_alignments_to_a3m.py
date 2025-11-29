@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 """
-Convert all Stockholm alignments to A3M format
-Run this after MSA generation to get .a3m files
+Converts all Stockholm alignment files in a directory to A3M format.
 """
 
 import sys
@@ -16,19 +15,11 @@ logger = logging.getLogger(__name__)
 
 
 def convert_directory(input_dir: Path, output_dir: Path = None):
-    """
-    Convert all .sto files in directory to .a3m format
-    
-    Args:
-        input_dir: Directory containing .sto files
-        output_dir: Output directory (if None, uses same as input)
-    """
     if output_dir is None:
         output_dir = input_dir
     
     output_dir.mkdir(parents=True, exist_ok=True)
     
-    # Find all Stockholm files
     sto_files = list(input_dir.glob("*.sto")) + list(input_dir.glob("**/*.sto"))
     
     if not sto_files:
@@ -41,14 +32,12 @@ def convert_directory(input_dir: Path, output_dir: Path = None):
     failed = 0
     
     for sto_file in sto_files:
-        # Create output filename
         a3m_file = output_dir / sto_file.with_suffix('.a3m').name
         
         try:
             logger.info(f"Converting {sto_file.name}...")
             stockholm_to_a3m(sto_file, a3m_file)
             
-            # Validate
             stats = validate_a3m(a3m_file)
             if stats['valid']:
                 logger.info(f"  ✓ {stats['n_sequences']} sequences, query length {stats['query_length']}")

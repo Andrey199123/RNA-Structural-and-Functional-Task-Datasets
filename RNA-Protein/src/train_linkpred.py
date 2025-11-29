@@ -38,7 +38,6 @@ def build_edge_index(train_df, rna_ids, prot_ids):
     for rna, prot in zip(train_df['rna_id'], train_df['prot_id']):
         if rna in rmap and prot in pmap:
             u = rmap[rna]; v = offset + pmap[prot]
-            # undirected edges
             src.append(u); dst.append(v)
             src.append(v); dst.append(u)
     edge_index = torch.tensor([src, dst], dtype=torch.long)

@@ -1,6 +1,5 @@
 """
-RNA Multiple Sequence Alignment (MSA) Pipeline
-Generates structure-aware MSAs for RNA sequences
+Builds multiple sequence alignments for RNA sequences to find structure and features.
 """
 
 from .pipeline import RNAMSAPipeline

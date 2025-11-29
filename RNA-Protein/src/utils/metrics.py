@@ -1,7 +1,6 @@
 from sklearn.metrics import matthews_corrcoef, roc_auc_score, average_precision_score, accuracy_score
 import numpy as np
 
-
 def binary_metrics(y_true, y_prob, thr=0.5):
     y_true = np.asarray(y_true).astype(int)
     y_prob = np.asarray(y_prob).astype(float)
@@ -12,9 +11,6 @@ def binary_metrics(y_true, y_prob, thr=0.5):
     auroc = roc_auc_score(y_true, y_prob) if len(np.unique(y_true)) > 1 else 0.5
     auprc = average_precision_score(y_true, y_prob) if len(np.unique(y_true)) > 1 else 0.5
     return dict(acc=acc, mcc=mcc, auroc=auroc, auprc=auprc)
-
-import numpy as np
-from sklearn.metrics import matthews_corrcoef, accuracy_score, roc_auc_score, average_precision_score
 
 def best_mcc_threshold(y_true, y_prob, grid=None):
     if grid is None:
