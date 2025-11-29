@@ -1,29 +1,12 @@
-#!/usr/bin/env python3
-"""
-Tests Infernal + Rfam on diverse RNA types from RNAcentral.
-"""
-
 import subprocess
 from pathlib import Path
 import time
 import re
+import csv
 
-print("TESTING INFERNAL + RFAM ON DIVERSE RNA TYPES")
-print()
+rfam_cm = Path('RNA-Protein/data/rfam/Rfam.cm')
+rfam_seed = Path('RNA-Protein/data/rfam/Rfam.seed')
 
-rfam_cm = Path('data/rfam/Rfam.cm')
-rfam_seed = Path('data/rfam/Rfam.seed')
-
-if not rfam_cm.exists() or not rfam_seed.exists():
-    print("Rfam database not found")
-    exit(1)
-
-print("Rfam database found")
-print()
-
-print("Extracting diverse RNA sample from RNAcentral...")
-print("Looking for different RNA types: rRNA, tRNA, miRNA, snoRNA, lncRNA, etc.")
-print()
 
 rna_types = {
     'rRNA': [],
@@ -31,14 +14,13 @@ rna_types = {
     'miRNA': [],
     'snoRNA': [],
     'snRNA': [],
-    'lncRNA': [],
     'other': []
 }
 
 current_header = None
 current_seq = []
 
-with open('data/rnacentral/rnacentral_active.fasta', 'r') as f:
+with open('RNA-Protein/data/rnacentral/rnacentral_active.fasta', 'r') as f:
     for line in f:
         line = line.strip()
         if line.startswith('>'):
@@ -48,9 +30,8 @@ with open('data/rnacentral/rnacentral_active.fasta', 'r') as f:
                 
                 if 100 <= seq_len <= 2000:
                     seq_id = current_header.split()[0][1:]
-                    
                     header_lower = current_header.lower()
-                    rna_type = 'other'
+                    rna_type = None
                     
                     if 'rrna' in header_lower or 'ribosomal' in header_lower:
                         rna_type = 'rRNA'
@@ -62,15 +43,17 @@ with open('data/rnacentral/rnacentral_active.fasta', 'r') as f:
                         rna_type = 'snoRNA'
                     elif 'snrna' in header_lower:
                         rna_type = 'snRNA'
-                    elif 'lncrna' in header_lower or 'long non-coding' in header_lower:
-                        rna_type = 'lncRNA'
+                    elif 'lncrna' not in header_lower and 'long non-coding' not in header_lower:
+                        # Only use as 'other' if it's NOT a lncRNA
+                        rna_type = 'other'
                     
-                    if len(rna_types[rna_type]) < 5:
+                    if rna_type and len(rna_types[rna_type]) < 5:
                         rna_types[rna_type].append({
                             'id': seq_id,
                             'seq': seq,
                             'length': seq_len,
-                            'header': current_header
+                            'header': current_header,
+                            'type': rna_type
                         })
             
             current_header = line
@@ -86,40 +69,19 @@ for rna_type, rnas in rna_types.items():
     test_rnas.extend(rnas)
     print(f"  {rna_type}: {len(rnas)} RNAs")
 
-print(f"\nTotal test RNAs: {len(test_rnas)}")
-print()
-
 # Create output directory
-output_dir = Path('data/test_infernal_diverse')
-output_dir.mkdir(exist_ok=True)
+output_dir = Path('RNA-Protein/data/test_infernal_fair')
+output_dir.mkdir(exist_ok=True, parents=True)
 
 # Test each RNA
 results = []
+success_count = 0
 
-print("Testing each RNA with Infernal + Rfam...")
-print()
+import sys
+sys.path.insert(0, 'RNA-Protein/src')
 
 for i, rna in enumerate(test_rnas, 1):
-    print(f"[{i}/{len(test_rnas)}] {rna['id']} ({rna['length']} nt)")
-    
-    # Determine RNA type from header
-    header_lower = rna['header'].lower()
-    if 'rrna' in header_lower:
-        rna_type = 'rRNA'
-    elif 'trna' in header_lower:
-        rna_type = 'tRNA'
-    elif 'mirna' in header_lower:
-        rna_type = 'miRNA'
-    elif 'snorna' in header_lower:
-        rna_type = 'snoRNA'
-    elif 'snrna' in header_lower:
-        rna_type = 'snRNA'
-    elif 'lncrna' in header_lower:
-        rna_type = 'lncRNA'
-    else:
-        rna_type = 'other'
-    
-    print(f"  Type: {rna_type}")
+    print(f"[{i}/{len(test_rnas)}] {rna['id']} ({rna['length']} nt, {rna['type']})")
     print(f"  Running cmscan...", end='', flush=True)
     
     # Write query file
@@ -131,7 +93,7 @@ for i, rna in enumerate(test_rnas, 1):
     infernal_out = output_dir / f"{rna['id']}_infernal.tblout"
     
     cmd = [
-        'cmscan',
+        '/Users/andreyvasilyev/miniconda3/envs/rna_msa/bin/cmscan',
         '--tblout', str(infernal_out),
         '--cut_ga',
         '--nohmmonly',
@@ -162,10 +124,7 @@ for i, rna in enumerate(test_rnas, 1):
             best_family = families_found[0][0]
             best_acc = families_found[0][1]
             
-            print(f"Found {len(families_found)} family match(es)")
-            print(f"    Best: {best_family} ({best_acc})")
-            
-            # Extract seed alignment and convert to A3M
+            print(f" ✓ Found {best_family} ({best_acc})")
             print(f"    Extracting seed alignment...", end='', flush=True)
             
             msa_generated = False
@@ -192,35 +151,32 @@ for i, rna in enumerate(test_rnas, 1):
                 print(f" {n_seqs} seqs", end='', flush=True)
                 
                 if n_seqs > 0:
-                    # Convert to A3M (use first sequence as query since our query isn't in the seed)
                     print(f", converting to A3M...", end='', flush=True)
-                    from src.rna_msa.alignment_formats import stockholm_to_a3m, validate_a3m
+                    from rna_msa.alignment_formats import stockholm_to_a3m, validate_a3m
                     
                     a3m_file = output_dir / f"{rna['id']}_{best_acc}.a3m"
-                    # Use None for query_id to use first sequence in alignment
                     stockholm_to_a3m(sto_file, a3m_file, query_id=None)
                     
-                    # Validate
                     stats = validate_a3m(a3m_file)
                     if stats['valid']:
                         msa_generated = True
-                        print(f"A3M generated ({stats['n_sequences']} seqs)")
+                        success_count += 1
+                        print(f" A3M generated ({stats['n_sequences']} seqs)")
                     else:
-                        print(f"A3M invalid")
+                        print(f" A3M invalid")
                 else:
-                    print(f"Empty seed")
+                    print(f" Empty seed")
                     
             except Exception as e:
-                print(f"Failed: {str(e)[:30]}")
+                print(f" Failed: {str(e)[:30]}")
             
             print(f"    Total time: {elapsed:.1f}s")
             
             results.append({
                 'rna_id': rna['id'],
-                'rna_type': rna_type,
+                'rna_type': rna['type'],
                 'length': rna['length'],
                 'success': msa_generated,
-                'msa_generated': msa_generated,
                 'family': best_family,
                 'family_acc': best_acc,
                 'n_families': len(families_found),
@@ -229,15 +185,14 @@ for i, rna in enumerate(test_rnas, 1):
                 'time': elapsed
             })
         else:
-            print(f"No Rfam family found")
+            print(f" No Rfam family found")
             print(f"    Time: {elapsed:.1f}s")
             
             results.append({
                 'rna_id': rna['id'],
-                'rna_type': rna_type,
+                'rna_type': rna['type'],
                 'length': rna['length'],
                 'success': False,
-                'msa_generated': False,
                 'family': None,
                 'family_acc': None,
                 'n_families': 0,
@@ -247,13 +202,12 @@ for i, rna in enumerate(test_rnas, 1):
             })
             
     except subprocess.TimeoutExpired:
-        print(f"Timeout")
+        print(f" Timeout")
         results.append({
             'rna_id': rna['id'],
-            'rna_type': rna_type,
+            'rna_type': rna['type'],
             'length': rna['length'],
             'success': False,
-            'msa_generated': False,
             'family': None,
             'family_acc': None,
             'n_families': 0,
@@ -262,13 +216,12 @@ for i, rna in enumerate(test_rnas, 1):
             'time': 120
         })
     except Exception as e:
-        print(f"Error: {str(e)[:50]}")
+        print(f" Error: {str(e)[:50]}")
         results.append({
             'rna_id': rna['id'],
-            'rna_type': rna_type,
+            'rna_type': rna['type'],
             'length': rna['length'],
             'success': False,
-            'msa_generated': False,
             'family': None,
             'family_acc': None,
             'n_families': 0,
@@ -279,69 +232,42 @@ for i, rna in enumerate(test_rnas, 1):
     
     print()
 
-print("RESULTS BY RNA TYPE")
-print()
-
-# Group by RNA type
-by_type = {}
-for r in results:
-    rna_type = r['rna_type']
-    if rna_type not in by_type:
-        by_type[rna_type] = []
-    by_type[rna_type].append(r)
-
-for rna_type in sorted(by_type.keys()):
-    type_results = by_type[rna_type]
-    total = len(type_results)
-    successful = [r for r in type_results if r['success']]
-    n_success = len(successful)
-    success_rate = n_success / total * 100 if total > 0 else 0
-    
-    print(f"{rna_type}:")
-    print(f"  Tested: {total}")
-    print(f"  Success: {n_success}/{total} ({success_rate:.1f}%)")
-    
-    if successful:
-        depths = [r['msa_depth'] for r in successful if r['msa_depth'] > 0]
-        if depths:
-            print(f"  Avg MSA depth: {sum(depths)/len(depths):.1f} sequences")
-        
-        families = set(r['family'] for r in successful)
-        print(f"  Families found: {', '.join(sorted(families))}")
-    
-    print()
-
-print("OVERALL SUMMARY")
-print()
-
-total = len(results)
-msa_generated = sum(1 for r in results if r.get('msa_generated', False))
-msa_rate = msa_generated / total * 100
-
-print(f"Total RNAs tested: {total}")
-print(f"MSAs generated: {msa_generated}/{total} ({msa_rate:.1f}%)")
-print(f"  (Success = A3M file generated)")
-print()
-
-if successful:
-    depths = [r['msa_depth'] for r in successful if r['msa_depth'] > 0]
-    if depths:
-        print(f"MSA Depth:")
-        print(f"  Min: {min(depths)} sequences")
-        print(f"  Max: {max(depths)} sequences")
-        print(f"  Avg: {sum(depths)/len(depths):.1f} sequences")
-        print()
-    
-    times = [r['time'] for r in successful]
-    print(f"Search Time:")
-    print(f"  Avg: {sum(times)/len(times):.1f}s")
-    print()
-
 # Save results
-results_file = output_dir / 'diverse_test_results.tsv'
-with open(results_file, 'w') as f:
-    f.write("RNA_ID\tRNA_Type\tLength\tMSA_Generated\tFamily\tFamily_Acc\tN_Families\tMSA_Depth\tA3M_File\tTime\n")
-    for r in results:
-        f.write(f"{r['rna_id']}\t{r['rna_type']}\t{r['length']}\t{r.get('msa_generated', False)}\t{r.get('family', 'N/A')}\t{r.get('family_acc', 'N/A')}\t{r['n_families']}\t{r['msa_depth']}\t{r.get('a3m_file', 'N/A')}\t{r['time']:.1f}\n")
+print("=" * 80)
+print("RESULTS SUMMARY")
+print("=" * 80)
+print()
 
-print(f"Detailed results saved to: {results_file}")
+print(f"Total RNAs tested: {len(test_rnas)}")
+print(f"Successful MSAs: {success_count}")
+print(f"Success rate: {success_count}/{len(test_rnas)} = {success_count/len(test_rnas)*100:.1f}%")
+print()
+
+print("Success rate by RNA type:")
+for rna_type in ['rRNA', 'tRNA', 'miRNA', 'snoRNA', 'snRNA', 'other']:
+    type_results = [r for r in results if r['rna_type'] == rna_type]
+    type_success = sum(1 for r in type_results if r['success'])
+    if type_results:
+        print(f"  {rna_type:8s}: {type_success}/{len(type_results)} ({type_success/len(type_results)*100:.1f}%)")
+
+print()
+
+# Save to TSV
+tsv_file = output_dir / 'infernal_fair_results.tsv'
+with open(tsv_file, 'w', newline='') as f:
+    writer = csv.DictWriter(f, fieldnames=['rna_id', 'rna_type', 'length', 'success', 'family', 'family_acc', 'n_families', 'msa_depth', 'a3m_file', 'time'], delimiter='\t')
+    writer.writeheader()
+    writer.writerows(results)
+
+print(f"Results saved to: {tsv_file}")
+print()
+
+print("COMPARISON:")
+print(f"  Original test (with lncRNAs): 62.9% (22/35)")
+print(f"  Fair test (without lncRNAs): {success_count/len(test_rnas)*100:.1f}% ({success_count}/{len(test_rnas)})")
+print()
+
+if success_count/len(test_rnas) > 0.7:
+    print("Infernal+Rfam performs well on RNA types it's designed for!")
+else:
+    print("Some RNA types still challenging for Infernal+Rfam")
