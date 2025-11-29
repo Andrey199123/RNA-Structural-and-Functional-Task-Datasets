@@ -1,8 +1,3 @@
-#!/usr/bin/env python3
-"""
-Converts all Stockholm alignment files in a directory to A3M format.
-"""
-
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent / "src"))
