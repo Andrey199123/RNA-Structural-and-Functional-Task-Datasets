@@ -46,7 +46,7 @@ class FastHomologySearch:
                 text=True,
                 check=True
             )
-            logger.info("✓ BLAST database created successfully")
+            logger.info("BLAST database created successfully")
         except subprocess.CalledProcessError as e:
             logger.error(f"Failed to create BLAST database: {e.stderr}")
             raise
@@ -187,9 +187,9 @@ if __name__ == "__main__":
     import sys
     
     if check_blast_available():
-        print("✓ BLAST tools are available")
+        print("BLAST tools are available")
     else:
-        print("✗ BLAST tools not found")
+        print("BLAST tools not found")
         print("Install with: conda install -c bioconda blast")
         sys.exit(1)
     

@@ -80,7 +80,6 @@ output_dir.mkdir(exist_ok=True)
 
 results = []
 print("Testing MSA generation...")
-print("=" * 80)
 
 for i, rna in enumerate(test_rnas[:30], 1):
     print(f"\n[{i}/30] {rna['id']} ({rna['type']}, {rna['length']} nt)")
@@ -147,7 +146,7 @@ for i, rna in enumerate(test_rnas[:30], 1):
         print(f"  Time: {search_time:.1f}s")
         
     except subprocess.TimeoutExpired:
-        print(f"  ✗ Timeout")
+        print(f"  Timeout")
         results.append({
             'id': rna['id'],
             'type': rna['type'],
@@ -159,7 +158,7 @@ for i, rna in enumerate(test_rnas[:30], 1):
             'success': False
         })
     except Exception as e:
-        print(f"  ✗ Error: {e}")
+        print(f"  Error: {e}")
         results.append({
             'id': rna['id'],
             'type': rna['type'],
@@ -171,9 +170,7 @@ for i, rna in enumerate(test_rnas[:30], 1):
             'success': False
         })
 
-print("\n" + "=" * 80)
 print("\nBENCHMARK RESULTS")
-print("=" * 80)
 
 # Overall statistics
 total = len(results)
@@ -181,7 +178,7 @@ successful = sum(1 for r in results if r['success'])
 success_rate = successful / total * 100
 
 print(f"\nOverall Success Rate: {successful}/{total} ({success_rate:.1f}%)")
-print(f"  (Success = ≥5 high-quality homologs)")
+print(f"  (Success = >=5 high-quality homologs)")
 
 # By quality
 quality_counts = Counter(r['quality'] for r in results)
@@ -234,7 +231,7 @@ long_rnas = [r for r in results if r['length'] >= 800]
 for category, data, label in [
     (short, short, "Short (<300nt)"),
     (medium, medium, "Medium (300-800nt)"),
-    (long_rnas, long_rnas, "Long (≥800nt)")
+    (long_rnas, long_rnas, "Long (>=800nt)")
 ]:
     if data:
         cat_success = sum(1 for r in data if r['success'])
@@ -247,24 +244,24 @@ print("\nCONCLUSION:")
 print("=" * 80)
 
 if success_rate >= 70:
-    print("✓ EXCELLENT: Pipeline works well for most RNAs")
+    print("EXCELLENT: Pipeline works well for most RNAs")
     print("  Can reliably generate MSAs for RNA-protein interaction prediction")
 elif success_rate >= 50:
-    print("✓ GOOD: Pipeline works for majority of RNAs")
+    print("GOOD: Pipeline works for majority of RNAs")
     print("  Suitable for MSA-based feature extraction")
 elif success_rate >= 30:
-    print("⚠ FAIR: Pipeline works for some RNAs")
+    print("FAIR: Pipeline works for some RNAs")
     print("  May need to filter dataset or use hybrid approach")
 else:
-    print("✗ POOR: Pipeline struggles with most RNAs")
+    print("POOR: Pipeline struggles with most RNAs")
     print("  Need alternative strategies or different dataset")
 
 print(f"\nKey findings:")
-print(f"  • {success_rate:.0f}% of RNAs can generate good MSAs (≥5 homologs)")
+print(f"  {success_rate:.0f}% of RNAs can generate good MSAs (>=5 homologs)")
 if successful_results:
-    print(f"  • Average MSA depth: {sum(r['n_homologs'] for r in successful_results)/len(successful_results):.0f} sequences")
-    print(f"  • Average identity: {sum(r['avg_identity'] for r in successful_results)/len(successful_results):.0f}%")
-print(f"  • Fast search: ~{avg_time:.0f}s per RNA")
+    print(f"  Average MSA depth: {sum(r['n_homologs'] for r in successful_results)/len(successful_results):.0f} sequences")
+    print(f"  Average identity: {sum(r['avg_identity'] for r in successful_results)/len(successful_results):.0f}%")
+print(f"  Fast search: ~{avg_time:.0f}s per RNA")
 
 # Save detailed results
 results_file = output_dir / 'benchmark_results.tsv'

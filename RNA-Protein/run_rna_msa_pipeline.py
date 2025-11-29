@@ -111,16 +111,14 @@ def main():
     setup_logging(args.verbose)
     logger = logging.getLogger(__name__)
     
-    logger.info("=" * 80)
     logger.info("RNA MSA Pipeline for RNA-Protein Interaction Prediction")
-    logger.info("=" * 80)
     
     # Check dependencies
     logger.info("Checking dependencies...")
     deps = check_dependencies()
     
     for tool, available in deps.items():
-        status = "✓" if available else "✗"
+        status = "OK" if available else "MISSING"
         logger.info(f"  {status} {tool}")
     
     if args.check_deps:
@@ -158,12 +156,10 @@ def main():
     sequences = RNASequence.from_fasta(args.rna_fasta)
     logger.info(f"Loaded {len(sequences)} RNA sequences")
     
-    # Test mode: process only first few
     if args.test_mode:
         sequences = sequences[:5]
         logger.info(f"TEST MODE: Processing only {len(sequences)} sequences")
     
-    # Print sequence statistics
     lengths = [seq.length for seq in sequences]
     logger.info(f"Sequence length statistics:")
     logger.info(f"  Min: {min(lengths)} nt")
@@ -171,10 +167,7 @@ def main():
     logger.info(f"  Mean: {sum(lengths)/len(lengths):.1f} nt")
     logger.info(f"  Long RNAs (>1000nt): {sum(1 for l in lengths if l > 1000)}")
     
-    # Process sequences
-    logger.info("=" * 80)
     logger.info("Processing RNA sequences...")
-    logger.info("=" * 80)
     
     results = {}
     success_count = 0
@@ -188,24 +181,21 @@ def main():
             
             if result['success']:
                 success_count += 1
-                logger.info(f"  ✓ Success: {result['strategy']}")
+                logger.info(f"  Success: {result['strategy']}")
                 if 'msa_depth' in result:
                     logger.info(f"    MSA depth: {result['msa_depth']}")
             else:
-                logger.warning(f"  ✗ Failed: {result.get('error', 'Unknown error')}")
+                logger.warning(f"  Failed: {result.get('error', 'Unknown error')}")
                 
         except Exception as e:
-            logger.error(f"  ✗ Exception: {e}")
+            logger.error(f"  Exception: {e}")
             results[rna.id] = {
                 'rna_id': rna.id,
                 'success': False,
                 'error': str(e)
             }
     
-    # Summary
-    logger.info("=" * 80)
     logger.info("Pipeline Summary")
-    logger.info("=" * 80)
     logger.info(f"Total sequences: {len(sequences)}")
     logger.info(f"Successful: {success_count}")
     logger.info(f"Failed: {len(sequences) - success_count}")
@@ -222,14 +212,11 @@ def main():
     for strategy, count in sorted(strategies.items()):
         logger.info(f"  {strategy}: {count}")
     
-    # Save results summary
     summary_file = args.output_dir / "pipeline_results.json"
     with open(summary_file, 'w') as f:
-        # Convert numpy types to Python types for JSON serialization
         import numpy as np
         
         def convert_to_json_serializable(obj):
-            """Convert numpy/complex types to JSON-serializable types"""
             if isinstance(obj, (int, float, str, bool, type(None))):
                 return obj
             elif isinstance(obj, np.integer):

@@ -7,23 +7,20 @@ import subprocess
 from pathlib import Path
 import time
 
-print("=" * 80)
 print("TESTING BLAST + RNACENTRAL ON DIVERSE RNA TYPES")
 print("Using the SAME RNAs as Infernal test for fair comparison")
-print("=" * 80)
 print()
 
 infernal_dir = Path('data/test_infernal_diverse')
 if not infernal_dir.exists():
-    print("✗ Infernal test results not found")
+    print("Infernal test results not found")
     print("  Run test_infernal_rfam_diverse.py first")
     exit(1)
 
-# Read the query files from Infernal test
 query_files = sorted(infernal_dir.glob('*_query.fa'))
 
 if not query_files:
-    print("✗ No query files found")
+    print("No query files found")
     exit(1)
 
 print(f"Found {len(query_files)} test RNAs from Infernal test")
@@ -94,10 +91,9 @@ for i, query_file in enumerate(query_files, 1):
                 if len(parts) >= 3:
                     seq_id = parts[0]
                     identity = float(parts[1])
-                    align_len = int(parts[2])
-                    
-                    # Quality filter: ≥70% identity, ≥50% of query length
-                    if identity >= 70 and align_len >= length * 0.5:
+                align_len = int(parts[2])
+                
+                if identity >= 70 and align_len >= length * 0.5:
                         hits.append((seq_id, identity, align_len))
         
         n_homologs = len(hits)
@@ -108,7 +104,7 @@ for i, query_file in enumerate(query_files, 1):
         a3m_file = None
         
         if n_homologs >= 5:
-            print(f" ✓ {n_homologs} homologs (avg {avg_identity:.1f}% identity)")
+            print(f"{n_homologs} homologs (avg {avg_identity:.1f}% identity)")
             print(f"    Generating MSA...", end='', flush=True)
             
             try:
@@ -143,20 +139,20 @@ for i, query_file in enumerate(query_files, 1):
                 stats = validate_a3m(a3m_file)
                 if stats['valid']:
                     msa_generated = True
-                    print(f" ✓ A3M generated ({stats['n_sequences']} seqs)")
+                    print(f"A3M generated ({stats['n_sequences']} seqs)")
                 else:
-                    print(f" ✗ A3M invalid")
+                    print(f"A3M invalid")
                     
             except Exception as e:
-                print(f" ✗ MSA failed: {str(e)[:30]}")
+                print(f"MSA failed: {str(e)[:30]}")
             
             print(f"    Total time: {elapsed:.1f}s")
             success = msa_generated
         elif n_homologs > 0:
-            print(f" ⚠ Only {n_homologs} homologs (need ≥5, {elapsed:.1f}s)")
+            print(f"Only {n_homologs} homologs (need >=5, {elapsed:.1f}s)")
             success = False
         else:
-            print(f" ✗ No homologs found ({elapsed:.1f}s)")
+            print(f"No homologs found ({elapsed:.1f}s)")
             success = False
         
         results.append({
@@ -172,7 +168,7 @@ for i, query_file in enumerate(query_files, 1):
         })
         
     except subprocess.TimeoutExpired:
-        print(f" ✗ Timeout")
+        print(f"Timeout")
         results.append({
             'rna_id': rna_id,
             'rna_type': rna_type,
@@ -183,7 +179,7 @@ for i, query_file in enumerate(query_files, 1):
             'time': 60
         })
     except Exception as e:
-        print(f" ✗ Error: {str(e)[:50]}")
+        print(f"Error: {str(e)[:50]}")
         results.append({
             'rna_id': rna_id,
             'rna_type': rna_type,
@@ -196,10 +192,7 @@ for i, query_file in enumerate(query_files, 1):
     
     print()
 
-# Summary by RNA type
-print("=" * 80)
 print("RESULTS BY RNA TYPE")
-print("=" * 80)
 print()
 
 by_type = {}
@@ -228,10 +221,7 @@ for rna_type in sorted(by_type.keys()):
     
     print()
 
-# Overall summary
-print("=" * 80)
 print("OVERALL SUMMARY")
-print("=" * 80)
 print()
 
 total = len(results)
@@ -277,13 +267,9 @@ with open(results_file, 'w') as f:
 print(f"Detailed results saved to: {results_file}")
 print()
 
-# Side-by-side comparison
-print("=" * 80)
 print("SIDE-BY-SIDE COMPARISON")
-print("=" * 80)
 print()
 
-# Load Infernal results for comparison
 infernal_by_type = {}
 with open(infernal_dir / 'diverse_test_results.tsv', 'r') as f:
     header = f.readline()
@@ -299,7 +285,6 @@ with open(infernal_dir / 'diverse_test_results.tsv', 'r') as f:
                 infernal_by_type[rna_type]['success'] += 1
 
 print(f"{'RNA Type':<15} {'Infernal+Rfam':<20} {'BLAST+RNAcentral':<20}")
-print("-" * 60)
 
 for rna_type in sorted(set(list(by_type.keys()) + list(infernal_by_type.keys()))):
     # BLAST results

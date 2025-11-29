@@ -8,19 +8,17 @@ from pathlib import Path
 import time
 import re
 
-print("=" * 80)
 print("TESTING INFERNAL + RFAM ON DIVERSE RNA TYPES")
-print("=" * 80)
 print()
 
 rfam_cm = Path('data/rfam/Rfam.cm')
 rfam_seed = Path('data/rfam/Rfam.seed')
 
 if not rfam_cm.exists() or not rfam_seed.exists():
-    print("✗ Rfam database not found")
+    print("Rfam database not found")
     exit(1)
 
-print("✓ Rfam database found")
+print("Rfam database found")
 print()
 
 print("Extracting diverse RNA sample from RNAcentral...")
@@ -164,7 +162,7 @@ for i, rna in enumerate(test_rnas, 1):
             best_family = families_found[0][0]
             best_acc = families_found[0][1]
             
-            print(f" ✓ Found {len(families_found)} family match(es)")
+            print(f"Found {len(families_found)} family match(es)")
             print(f"    Best: {best_family} ({best_acc})")
             
             # Extract seed alignment and convert to A3M
@@ -206,14 +204,14 @@ for i, rna in enumerate(test_rnas, 1):
                     stats = validate_a3m(a3m_file)
                     if stats['valid']:
                         msa_generated = True
-                        print(f" ✓ A3M generated ({stats['n_sequences']} seqs)")
+                        print(f"A3M generated ({stats['n_sequences']} seqs)")
                     else:
-                        print(f" ✗ A3M invalid")
+                        print(f"A3M invalid")
                 else:
-                    print(f" ✗ Empty seed")
+                    print(f"Empty seed")
                     
             except Exception as e:
-                print(f" ✗ Failed: {str(e)[:30]}")
+                print(f"Failed: {str(e)[:30]}")
             
             print(f"    Total time: {elapsed:.1f}s")
             
@@ -231,7 +229,7 @@ for i, rna in enumerate(test_rnas, 1):
                 'time': elapsed
             })
         else:
-            print(f" ✗ No Rfam family found")
+            print(f"No Rfam family found")
             print(f"    Time: {elapsed:.1f}s")
             
             results.append({
@@ -249,7 +247,7 @@ for i, rna in enumerate(test_rnas, 1):
             })
             
     except subprocess.TimeoutExpired:
-        print(f" ✗ Timeout")
+        print(f"Timeout")
         results.append({
             'rna_id': rna['id'],
             'rna_type': rna_type,
@@ -264,7 +262,7 @@ for i, rna in enumerate(test_rnas, 1):
             'time': 120
         })
     except Exception as e:
-        print(f" ✗ Error: {str(e)[:50]}")
+        print(f"Error: {str(e)[:50]}")
         results.append({
             'rna_id': rna['id'],
             'rna_type': rna_type,
@@ -281,10 +279,7 @@ for i, rna in enumerate(test_rnas, 1):
     
     print()
 
-# Summary
-print("=" * 80)
 print("RESULTS BY RNA TYPE")
-print("=" * 80)
 print()
 
 # Group by RNA type
@@ -316,10 +311,7 @@ for rna_type in sorted(by_type.keys()):
     
     print()
 
-# Overall summary
-print("=" * 80)
 print("OVERALL SUMMARY")
-print("=" * 80)
 print()
 
 total = len(results)

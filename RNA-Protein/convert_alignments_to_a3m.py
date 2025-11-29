@@ -40,14 +40,14 @@ def convert_directory(input_dir: Path, output_dir: Path = None):
             
             stats = validate_a3m(a3m_file)
             if stats['valid']:
-                logger.info(f"  ✓ {stats['n_sequences']} sequences, query length {stats['query_length']}")
+                logger.info(f"  {stats['n_sequences']} sequences, query length {stats['query_length']}")
                 converted += 1
             else:
-                logger.error(f"  ✗ Invalid A3M: {stats.get('error', 'Unknown error')}")
+                logger.error(f"  Invalid A3M: {stats.get('error', 'Unknown error')}")
                 failed += 1
                 
         except Exception as e:
-            logger.error(f"  ✗ Failed: {e}")
+            logger.error(f"  Failed: {e}")
             failed += 1
     
     logger.info(f"\nConversion complete:")

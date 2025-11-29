@@ -94,7 +94,7 @@ def main():
     va.to_csv(out_dir / "uNODES_val.csv", index=False)
     te.to_csv(out_dir / "uNODES_test.csv", index=False)
 
-    print(f"✅ Splits written to: {out_dir.resolve()}")
+    print(f"Splits written to: {out_dir.resolve()}")
 
 
 if __name__ == "__main__":

@@ -63,7 +63,7 @@ def main():
 
     Path(args.out_npz).parent.mkdir(parents=True, exist_ok=True)
     np.savez(args.out_npz, **out)
-    print(f"✅ Saved RNA embeddings to {args.out_npz} (n={len(out)})")
+    print(f"Saved RNA embeddings to {args.out_npz} (n={len(out)})")
 
 
 if __name__ == "__main__":

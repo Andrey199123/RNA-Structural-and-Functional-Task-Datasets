@@ -7,10 +7,8 @@ import subprocess
 from pathlib import Path
 import time
 
-print("=" * 80)
 print("TESTING INFERNAL + RFAM")
 print("On 30 Diverse RNAs (same as BLAST benchmark)")
-print("=" * 80)
 print()
 
 benchmark_dir = Path('data/msa_benchmark')
@@ -23,14 +21,14 @@ rfam_cm = Path('data/rfam/Rfam.cm')
 rfam_seed = Path('data/rfam/Rfam.seed')
 
 if not rfam_cm.exists():
-    print(f"✗ Rfam.cm not found at {rfam_cm}")
+    print(f"Rfam.cm not found at {rfam_cm}")
     exit(1)
 
 if not rfam_seed.exists():
-    print(f"✗ Rfam.seed not found at {rfam_seed}")
+    print(f"Rfam.seed not found at {rfam_seed}")
     exit(1)
 
-print("✓ Rfam database found")
+print("Rfam database found")
 print()
 
 results = []
@@ -85,7 +83,7 @@ for i, query_file in enumerate(query_files, 1):
             best_family = families_found[0][0]
             best_acc = families_found[0][1]
             
-            print(f" ✓ Found {len(families_found)} family match(es)")
+            print(f"Found {len(families_found)} family match(es)")
             print(f"    Best: {best_family} ({best_acc})")
             
             print(f"    Counting sequences in seed alignment...", end='', flush=True)
@@ -124,7 +122,7 @@ for i, query_file in enumerate(query_files, 1):
             
             print(f"    Time: {elapsed:.1f}s")
         else:
-            print(f" ✗ No Rfam family found")
+            print(f"No Rfam family found")
             print(f"    Time: {elapsed:.1f}s")
             
             results.append({
@@ -139,7 +137,7 @@ for i, query_file in enumerate(query_files, 1):
             })
             
     except subprocess.TimeoutExpired:
-        print(f" ✗ Timeout (>120s)")
+        print(f"Timeout (>120s)")
         results.append({
             'rna_id': rna_id,
             'length': seq_len,
@@ -151,7 +149,7 @@ for i, query_file in enumerate(query_files, 1):
             'time': 120
         })
     except Exception as e:
-        print(f" ✗ Error: {str(e)[:50]}")
+        print(f"Error: {str(e)[:50]}")
         results.append({
             'rna_id': rna_id,
             'length': seq_len,
@@ -165,12 +163,7 @@ for i, query_file in enumerate(query_files, 1):
     
     print()
 
-# ========================================
-# Summary Statistics
-# ========================================
-print("=" * 80)
 print("INFERNAL + RFAM RESULTS")
-print("=" * 80)
 print()
 
 total = len(results)
@@ -224,12 +217,7 @@ if failed:
         print(f"  {r['rna_id']} ({r['length']} nt) - No Rfam family found")
     print()
 
-# ========================================
-# Compare with BLAST benchmark
-# ========================================
-print("=" * 80)
 print("COMPARISON WITH BLAST BENCHMARK")
-print("=" * 80)
 print()
 
 # Load BLAST benchmark results
@@ -272,7 +260,7 @@ if blast_file.exists():
         print(f"  BLAST+RNAcentral:  {sum(blast_depths)/len(blast_depths):5.1f} sequences")
         print()
 else:
-    print("⚠ BLAST benchmark results not found")
+    print("BLAST benchmark results not found")
     print()
 
 # ========================================
@@ -287,32 +275,27 @@ with open(results_file, 'w') as f:
 print(f"Detailed results saved to: {results_file}")
 print()
 
-# ========================================
-# Conclusion
-# ========================================
-print("=" * 80)
 print("CONCLUSION")
-print("=" * 80)
 print()
 
 if success_rate >= 90:
-    print("✓ EXCELLENT: Infernal+Rfam works very well for these RNAs")
+    print("EXCELLENT: Infernal+Rfam works very well for these RNAs")
     print(f"  {success_rate:.0f}% of RNAs found in Rfam families")
 elif success_rate >= 70:
-    print("✓ GOOD: Infernal+Rfam works for most RNAs")
+    print("GOOD: Infernal+Rfam works for most RNAs")
     print(f"  {success_rate:.0f}% of RNAs found in Rfam families")
 elif success_rate >= 50:
-    print("⚠ FAIR: Infernal+Rfam works for some RNAs")
+    print("FAIR: Infernal+Rfam works for some RNAs")
     print(f"  {success_rate:.0f}% of RNAs found in Rfam families")
 else:
-    print("✗ LIMITED: Infernal+Rfam works for few RNAs")
+    print("LIMITED: Infernal+Rfam works for few RNAs")
     print(f"  Only {success_rate:.0f}% of RNAs found in Rfam families")
 
 print()
 print("Key findings:")
-print(f"  • {success_rate:.0f}% of test RNAs are in Rfam families")
+print(f"  {success_rate:.0f}% of test RNAs are in Rfam families")
 if depths:
-    print(f"  • Average seed alignment: {sum(depths)/len(depths):.0f} sequences")
+    print(f"  Average seed alignment: {sum(depths)/len(depths):.0f} sequences")
 if times:
-    print(f"  • Average search time: {sum(times)/len(times):.0f}s")
+    print(f"  Average search time: {sum(times)/len(times):.0f}s")
 print()

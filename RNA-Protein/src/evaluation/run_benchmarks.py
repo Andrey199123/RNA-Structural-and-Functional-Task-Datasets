@@ -146,10 +146,7 @@ def run_single_fold(fold_idx, train_df, val_df, test_df, rna_ids, prot_ids,
 
 
 def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
-
-    print(f"\n{'='*60}")
-    print(f"Running {n_folds}-fold CV on {dataset_name} with {split_type} split")
-    print(f"{'='*60}")
+    print(f"\nRunning {n_folds}-fold CV on {dataset_name} with {split_type} split")
     
     (rna_ids, Xr), (prot_ids, Xp) = load_npz_embeddings(
         cfg["embeddings"]["rna_npz"],
@@ -285,9 +282,7 @@ def run_cross_validation(dataset_name, split_type, cfg, n_folds=5):
         "fold_results": results
     }
     
-    print(f"\n{'-'*40}")
-    print(f"SUMMARY - {dataset_name} ({split_type})")
-    print(f"{'-'*40}")
+    print(f"\nSUMMARY - {dataset_name} ({split_type})")
     print(f"Test Accuracy:  {summary['mean_test_acc']:.4f} ± {summary['std_test_acc']:.4f}")
     print(f"Test MCC:       {summary['mean_test_mcc']:.4f} ± {summary['std_test_mcc']:.4f}")
     print(f"Test AUROC:     {summary['mean_test_auroc']:.4f} ± {summary['std_test_auroc']:.4f}")

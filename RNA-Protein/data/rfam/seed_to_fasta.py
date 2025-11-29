@@ -42,11 +42,11 @@ def stockholm_to_fasta(seed_file, output_file):
         for seq_id, seq in sequences.items():
             f.write(f">{seq_id}\n{seq}\n")
     
-    print(f"✓ Converted {len(sequences)} sequences to {output_file}")
+    print(f"Converted {len(sequences)} sequences to {output_file}")
     
     import os
     size_mb = os.path.getsize(output_file) / 1024 / 1024
-    print(f"✓ File size: {size_mb:.1f} MB")
+    print(f"File size: {size_mb:.1f} MB")
 
 if __name__ == '__main__':
     stockholm_to_fasta('Rfam.seed', 'rfam_sequences.fasta')

@@ -200,9 +200,9 @@ if __name__ == "__main__":
     stats = validate_a3m(a3m_file)
     
     if stats['valid']:
-        print("✓ Valid A3M file")
+        print("Valid A3M file")
         print(f"  Sequences: {stats['n_sequences']}")
         print(f"  Query length: {stats['query_length']}")
         print(f"  Length range: {stats['min_length']}-{stats['max_length']}")
     else:
-        print(f"✗ Invalid: {stats['error']}")
+        print(f"Invalid: {stats['error']}")
