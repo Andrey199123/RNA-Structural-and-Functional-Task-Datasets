@@ -1,0 +1,145 @@
+================================================================================
+PROJECT STATUS - RNA-PROTEIN INTERACTION PREDICTION
+================================================================================
+Date: December 19, 2025
+
+================================================================================
+WHAT'S WORKING ✅
+================================================================================
+
+1. RNA 3D STRUCTURE PREDICTION
+   Tool: trRosettaRNA2
+   Status: INSTALLED & TESTED ✅
+   Location: trRosettaRNA2/
+   Environment: rna_msa (conda)
+   
+   What it does:
+   - Takes .a3m MSA files as input
+   - Predicts RNA 3D structures
+   - Outputs PDB files
+   
+   Test results:
+   - Example file: pLDDT 0.918 ✅
+   - Your RNA sequence: pLDDT 0.494 ✅
+   
+   Usage:
+   conda run -n rna_msa python -m trRNA2.predict \
+     -i input.a3m -o output_dir -relax_steps 0
+
+2. RNA MSA GENERATION
+   Tools: Infernal + Rfam, BLAST + RNAcentral
+   Status: WORKING ✅
+   Location: RNA-Protein/
+   
+   Generated files:
+   - RNA-Protein/data/test_infernal_diverse/*.a3m
+   - RNA-Protein/data/test_blast_diverse/*.a3m
+
+================================================================================
+WHAT'S NOT WORKING YET ⏳
+================================================================================
+
+1. PROTEIN 3D STRUCTURE PREDICTION
+   Tool: trRosetta2
+   Status: DOWNLOADED, NOT INSTALLED ⏳
+   Location: trRosetta2/
+   
+   Issues:
+   - Requires old TensorFlow 1.x (incompatible with modern systems)
+   - Needs many dependencies: HHblits, PSIPRED, template databases
+   - Environment creation failed on macOS
+   
+   Alternatives to consider:
+   - ESMFold (simpler, more modern)
+   - AlphaFold (more accurate but heavier)
+   - Use trRosetta on Linux system
+   - Use online servers (Robetta)
+
+2. DSSR (RNA FEATURE EXTRACTION)
+   Status: NOT INSTALLED ⏳
+   Reason: Requires manual registration at http://x3dna.org/
+   
+   Next step: You need to:
+   - Register at x3dna.org
+   - Download DSSR binary
+   - Place in DSSR/bin/
+
+3. RINMAKER (PROTEIN FEATURE EXTRACTION)
+   Status: BLOCKED ON MACOS ⏳
+   Reason: Compilation fails (name conflicts with macOS headers)
+   
+   Alternatives:
+   - Use on Linux
+   - Use pre-compiled binary
+   - Fix source code
+
+================================================================================
+CURRENT PIPELINE STATUS
+================================================================================
+
+RNA SIDE (80% complete):
+✅ Sequence → MSA (.a3m)
+✅ MSA → trRosettaRNA2 → 3D structure (PDB)
+⏳ PDB → DSSR → features (blocked: need to install DSSR)
+
+PROTEIN SIDE (10% complete):
+✅ Sequence → MSA (you have this from previous work)
+⏳ MSA → trRosetta → 3D structure (blocked: installation issues)
+⏳ PDB → RINmaker → features (blocked: macOS compilation)
+
+================================================================================
+KNOWN ISSUES
+================================================================================
+
+1. .a3m FORMAT ISSUE
+   Problem: Your .a3m files have variable-length sequences (83-103 nt)
+   Impact: trRosettaRNA2 requires all sequences same length
+   Solution: Fix alignment_formats.py to pad sequences with gaps
+   
+2. trRosetta2 INSTALLATION
+   Problem: Old dependencies (TensorFlow 1.x, Python 3.6)
+   Impact: Can't install on modern macOS
+   Solution: Use alternative tool or Linux system
+
+================================================================================
+RECOMMENDED NEXT STEPS
+================================================================================
+
+Option A - Continue with current tools:
+1. Fix .a3m format (pad sequences to same length)
+2. Install DSSR manually (register at x3dna.org)
+3. Try trRosetta2 on Linux or use online server
+4. Extract features and build ML model
+
+Option B - Use modern alternatives:
+1. Keep trRosettaRNA2 for RNA (working great!)
+2. Use ESMFold for protein structure prediction (easier to install)
+3. Install DSSR for RNA features
+4. Find alternative to RINmaker for protein features
+5. Build ML model
+
+Option C - Use online servers:
+1. Use trRosettaRNA2 locally for RNA
+2. Use Robetta server for protein structures
+3. Download predicted structures
+4. Extract features locally with DSSR/RINmaker
+
+================================================================================
+FILES REMOVED
+================================================================================
+
+Deleted documentation .md files:
+- BENCHMARK_README.md
+- CHECKLIST.md
+- GETTING_STARTED.md
+- README_BENCHMARKS.md
+- SUMMARY_FOR_AZAM.md
+- WORKFLOW_DIAGRAM.md
+
+Kept essential files:
+- FINAL_STATUS.txt (detailed status)
+- STATUS_SUMMARY.txt (this file)
+- Test scripts (*.py)
+- Tool-specific READMEs in subdirectories
+
+================================================================================

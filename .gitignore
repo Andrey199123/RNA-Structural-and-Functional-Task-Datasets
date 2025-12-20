@@ -87,5 +87,27 @@ test_output/
 RNA-Protein/data/rna_msa_output/
 RNA-Protein/data/strategy_comparison/
 
+# trRosettaRNA2 model weights and large files
+trRosettaRNA2/params/
+trRosettaRNA2/params_trRNA2.tar.bz2
+trRosettaRNA2/__pycache__/
+trRosettaRNA2/trRNA2/__pycache__/
+trRosettaRNA2/trRNA2/utils_3d/__pycache__/
+
+# trRosetta2 (not used, but large)
+trRosetta2/
+
+# RINmaker build artifacts
+RINmaker/RINmaker/build/
+RINmaker/RINmaker/.git/
+RINmaker/RINmaker/gemmi/
+
+# DSSR files
+DSSR/dssr-basic.tar.gz
+DSSR/bin/
+
+# Miniconda installer
+Miniconda3-*.sh
+
 # Keep structure but ignore large files
 !.gitkeep

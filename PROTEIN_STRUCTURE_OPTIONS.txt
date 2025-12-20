@@ -1,0 +1,187 @@
+================================================================================
+PROTEIN 3D STRUCTURE PREDICTION - OPTIONS
+================================================================================
+
+PROBLEM: Both trRosetta2 and ESMFold are difficult to install on macOS
+- trRosetta2: Requires old TensorFlow 1.x
+- ESMFold: Requires OpenFold which needs CUDA (not available on macOS)
+
+================================================================================
+RECOMMENDED OPTIONS
+================================================================================
+
+OPTION 1: Use ESMFold API (EASIEST) ⭐
+----------------------------------------
+ESMFold has a free API you can use without local installation.
+
+API endpoint: https://api.esmatlas.com/foldSequence/v1/pdb/
+
+Example usage:
+```python
+import requests
+
+def predict_structure_api(sequence):
+    response = requests.post(
+        'https://api.esmatlas.com/foldSequence/v1/pdb/',
+        data=sequence
+    )
+    return response.text  # Returns PDB string
+
+# Use it
+pdb_string = predict_structure_api("MKTAYIAKQRQISFVK...")
+with open("protein.pdb", "w") as f:
+    f.write(pdb_string)
+```
+
+Pros:
+✓ No installation needed
+✓ Fast and reliable
+✓ Free for academic use
+✓ Same quality as local ESMFold
+
+Cons:
+✗ Requires internet connection
+✗ Rate limits may apply for many sequences
+
+
+OPTION 2: Use AlphaFold Server (HIGH QUALITY)
+----------------------------------------------
+Google's AlphaFold server: https://alphafoldserver.com/
+
+Pros:
+✓ Highest quality predictions
+✓ No installation needed
+✓ Free for academic use
+
+Cons:
+✗ Manual upload (not scriptable)
+✗ Slower (queue system)
+✗ Limited number of predictions per day
+
+
+OPTION 3: Use Robetta Server
+-----------------------------
+Baker Lab's server: https://robetta.bakerlab.org/
+
+Pros:
+✓ Uses trRosetta (what Azam mentioned)
+✓ No installation needed
+✓ Free for academic use
+
+Cons:
+✗ Manual upload
+✗ Slower (queue system)
+✗ Limited predictions
+
+
+OPTION 4: Install on Linux (LOCAL CONTROL)
+-------------------------------------------
+If you have access to a Linux machine or server:
+
+For trRosetta2:
+```bash
+git clone https://github.com/RosettaCommons/trRosetta2
+cd trRosetta2
+conda env create -f casp14-baker-linux-cpu.yml
+# Download weights and databases
+```
+
+For ESMFold (requires GPU):
+```bash
+pip install fair-esm[esmfold]
+pip install 'openfold @ git+https://github.com/aqlaboratory/openfold.git'
+```
+
+Pros:
+✓ Full control
+✓ Can process many sequences
+✓ No rate limits
+
+Cons:
+✗ Requires Linux
+✗ Large downloads (databases ~50GB for trRosetta)
+✗ Complex setup
+
+
+OPTION 5: Use ESM-2 Embeddings Only (SIMPLEST)
+-----------------------------------------------
+Instead of predicting 3D structures, use ESM-2 protein embeddings directly.
+
+```python
+import torch
+import esm
+
+# Load ESM-2 model (works on macOS!)
+model, alphabet = esm.pretrained.esm2_t33_650M_UR50D()
+batch_converter = alphabet.get_batch_converter()
+model.eval()
+
+# Get embeddings
+data = [("protein1", "MKTAYIAKQRQISFVK...")]
+batch_labels, batch_strs, batch_tokens = batch_converter(data)
+
+with torch.no_grad():
+    results = model(batch_tokens, repr_layers=[33])
+    embeddings = results["representations"][33]
+
+# Use embeddings as features (no 3D structure needed)
+```
+
+Pros:
+✓ Works on macOS
+✓ Already installed (fair-esm package)
+✓ Fast
+✓ Good for ML models
+
+Cons:
+✗ No 3D structure (just embeddings)
+✗ Can't use RINmaker (needs PDB files)
+✗ Different from Azam's original plan
+
+
+================================================================================
+RECOMMENDED APPROACH FOR YOUR PROJECT
+================================================================================
+
+HYBRID APPROACH:
+1. RNA: Use trRosettaRNA2 locally (already working!) ✓
+2. Protein: Use ESMFold API for structure prediction
+3. Features: Extract with DSSR (RNA) and RINmaker (protein)
+
+This gives you:
+✓ Full pipeline working
+✓ No complex installations
+✓ 3D structures for both RNA and protein
+✓ Can process your dataset
+
+Implementation:
+```python
+# For proteins
+import requests
+
+def get_protein_structure(sequence, output_file):
+    response = requests.post(
+        'https://api.esmatlas.com/foldSequence/v1/pdb/',
+        data=sequence,
+        headers={'Content-Type': 'text/plain'}
+    )
+    with open(output_file, 'w') as f:
+        f.write(response.text)
+    return output_file
+
+# For RNA (already working)
+# conda run -n rna_msa python -m trRNA2.predict -i input.a3m -o output_dir
+```
+
+================================================================================
+NEXT STEPS
+================================================================================
+
+1. Test ESMFold API with a few protein sequences
+2. Verify PDB outputs are valid
+3. Install DSSR for RNA feature extraction
+4. Test RINmaker with predicted protein structures
+5. Build feature extraction pipeline
+6. Train ML model
+
+================================================================================
