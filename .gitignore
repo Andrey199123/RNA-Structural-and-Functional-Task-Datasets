@@ -62,11 +62,19 @@ RNA-Protein/data/rnacentral/
 *.not
 *.ntf
 *.nto
+*.nal
+*.njs
+*.nog
 
 # Large test output directories
 RNA-Protein/data/rna_msa_comprehensive_test/
 RNA-Protein/data/rna_msa_rnacentral_test/
 RNA-Protein/data/rna_msa_test/
+RNA-Protein/data/test_blast_diverse/
+RNA-Protein/data/test_blast_long_lncrna/
+RNA-Protein/data/test_hybrid_diverse/
+RNA-Protein/data/test_hybrid_lncrna/
+RNA-Protein/data/test_infernal_diverse/
 
 # Model checkpoints
 RNA-Protein/checkpoints/
@@ -81,6 +89,17 @@ RNA-Protein/model_saves/
 
 # Large installers
 *.sh
+
+# PDB files (structure files)
+*.pdb
+
+# A3M alignment files (can be large)
+*.a3m
+*.sto
+
+# FASTA files in test directories
+RNA-Protein/data/test_*/*.fa
+RNA-Protein/data/test_*/*.fasta
 
 # Output directories
 test_output/
