@@ -75,6 +75,8 @@ RNA-Protein/data/test_blast_long_lncrna/
 RNA-Protein/data/test_hybrid_diverse/
 RNA-Protein/data/test_hybrid_lncrna/
 RNA-Protein/data/test_infernal_diverse/
+RNA-Protein/data/test_rna_generation/
+RNA-Protein/data/structural_features/
 
 # Model checkpoints
 RNA-Protein/checkpoints/
@@ -130,3 +132,12 @@ Miniconda3-*.sh
 
 # Keep structure but ignore large files
 !.gitkeep
+
+# Local config files
+*.local
+
+# Main text file
+main.txt
+
+# Full logs
+*_full.log

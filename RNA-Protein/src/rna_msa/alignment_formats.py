@@ -87,6 +87,16 @@ def convert_to_a3m_format(seq: str, query_seq: str, query_positions: List[int]) 
 
 
 def fasta_to_a3m(fasta_file: Path, a3m_file: Path, query_id: str = None):
+    """Convert aligned FASTA to A3M format.
+    
+    In A3M format:
+    - Query sequence has no gaps (uppercase)
+    - Other sequences: gaps aligned to query deletions are removed,
+      insertions relative to query are lowercase
+    
+    For trRosettaRNA2 compatibility, we keep all sequences the same length
+    by preserving the alignment structure, and write each sequence on ONE line.
+    """
     sequences = {}
     current_id = None
     current_seq = []
@@ -115,20 +125,20 @@ def fasta_to_a3m(fasta_file: Path, a3m_file: Path, query_id: str = None):
         raise ValueError(f"Query ID {query_id} not found in alignment")
     
     query_seq = sequences[query_id]
+    
+    # Find positions where query has residues (not gaps)
     query_positions = [i for i, char in enumerate(query_seq) if char not in ['-', '.']]
     
     with open(a3m_file, 'w') as f:
         for seq_id, seq in sequences.items():
-            aligned_seq = ''.join([seq[i] for i in query_positions])
+            # Extract only columns where query has residues
+            aligned_seq = ''.join([seq[i] if i < len(seq) else '-' for i in query_positions])
             
-            if seq_id == query_id:
-                a3m_seq = aligned_seq.replace('-', '').replace('.', '').upper()
-            else:
-                a3m_seq = aligned_seq.replace('-', '').replace('.', '').upper()
+            # Convert to uppercase, keep gaps as '-'
+            a3m_seq = aligned_seq.upper()
             
-            f.write(f">{seq_id}\n")
-            for i in range(0, len(a3m_seq), 80):
-                f.write(a3m_seq[i:i+80] + '\n')
+            # Write header and sequence on ONE line (required by trRosettaRNA2)
+            f.write(f">{seq_id}\n{a3m_seq}\n")
 
 
 def a3m_to_fasta(a3m_file: Path, fasta_file: Path):

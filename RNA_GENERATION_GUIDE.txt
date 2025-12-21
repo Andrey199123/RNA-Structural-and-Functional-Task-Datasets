@@ -1,0 +1,129 @@
+================================================================================
+RNA STRUCTURE GENERATION - QUICK START GUIDE
+================================================================================
+
+UPDATED FEATURES:
+✓ Multiprocessing support (4 workers by default)
+✓ Automatic progress saving (every 10 RNAs)
+✓ Resume capability (skip already completed RNAs)
+✓ Real-time ETA and rate tracking
+✓ Cleaner output (less verbose)
+
+================================================================================
+BASIC USAGE
+================================================================================
+
+1. TEST MODE (10 RNAs, ~30-60 minutes):
+   
+   conda activate rna_msa
+   python generate_rna_structures_rpi7317.py --mode test --workers 4
+
+2. FULL MODE (1,874 RNAs, ~2-5 days):
+   
+   conda activate rna_msa
+   python generate_rna_structures_rpi7317.py --mode full --workers 4
+
+3. RESUME FROM INTERRUPTION:
+   
+   conda activate rna_msa
+   python generate_rna_structures_rpi7317.py --mode full --workers 4 --resume
+
+================================================================================
+PERFORMANCE TUNING
+================================================================================
+
+Number of workers:
+  --workers 2   # Conservative (low CPU usage)
+  --workers 4   # Balanced (recommended)
+  --workers 8   # Aggressive (high CPU usage)
+
+Recommendation: Start with 4 workers. If your Mac gets too hot or slow, 
+reduce to 2. If it's handling it well, try 8.
+
+================================================================================
+MONITORING PROGRESS
+================================================================================
+
+While the script is running, open a new terminal and run:
+
+  python check_rna_progress.py
+
+This shows:
+- Number of completed RNAs
+- Percentage complete
+- Number of failed RNAs
+- Last update time
+- Files on disk
+
+================================================================================
+INTERRUPTING AND RESUMING
+================================================================================
+
+To stop the script:
+  Press Ctrl+C
+
+To resume later:
+  python generate_rna_structures_rpi7317.py --mode full --workers 4 --resume
+
+The script automatically:
+- Saves progress every 10 RNAs
+- Skips already completed RNAs when resuming
+- Continues from where it left off
+
+================================================================================
+OUTPUT FILES
+================================================================================
+
+Location: RNA-Protein/data/structural_features/
+
+  msas/                          # MSA files (.a3m format)
+  rna_structures/                # PDB structure files
+  rna_generation_progress.json   # Progress tracking
+
+================================================================================
+EXPECTED TIMELINE (FULL MODE)
+================================================================================
+
+With 4 workers on a modern Mac:
+- MSA generation: ~2-5 seconds per RNA
+- Structure prediction: ~30-60 seconds per RNA
+- Total per RNA: ~35-65 seconds
+- Total time: ~18-34 hours (1-2 days)
+
+Actual time depends on:
+- CPU speed
+- Number of workers
+- MSA success rate
+- RNA sequence length
+
+================================================================================
+TROUBLESHOOTING
+================================================================================
+
+If the script crashes:
+1. Check the error message
+2. Run with --resume to continue
+3. Reduce --workers if system is overloaded
+4. Check progress with: python check_rna_progress.py
+
+If progress seems stuck:
+1. Check system resources (Activity Monitor)
+2. Verify conda environment is activated
+3. Check disk space
+4. Look at log output for errors
+
+================================================================================
+NEXT STEPS AFTER COMPLETION
+================================================================================
+
+Once RNA structures are generated, extract features:
+
+  python extract_structural_features_rpi7317.py --mode full
+
+This will:
+- Use existing protein features (already done)
+- Extract RNA features from new PDB files
+- Create JSON files with structural features
+- Generate GraphML files with interaction networks
+
+================================================================================
