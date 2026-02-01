@@ -198,7 +198,7 @@ for i, rna in enumerate(test_rnas, 1):
             print(f" {n_homologs} homologs", end='', flush=True)
             
             if n_homologs >= 10:
-                # Extract and align
+                # Extract homologs and ADD QUERY to the input
                 id_file = output_dir / f"{rna['id']}_ids.txt"
                 with open(id_file, 'w') as f:
                     for seq_id in homolog_ids:
@@ -214,6 +214,18 @@ for i, rna in enumerate(test_rnas, 1):
                 ]
                 subprocess.run(cmd, capture_output=True, text=True, timeout=60)
                 
+                # CRITICAL FIX: Add query sequence to homologs file for MAFFT
+                # This ensures alignment is anchored to the query
+                with open(homologs_file, 'r') as f:
+                    homolog_content = f.read()
+                
+                with open(homologs_file, 'w') as f:
+                    # Write query first
+                    f.write(f">{rna['id']}\n{rna['seq']}\n")
+                    # Then write homologs
+                    f.write(homolog_content)
+                
+                # Run MAFFT - output is already aligned FASTA with gaps
                 aligned_file = output_dir / f"{rna['id']}_aligned.fa"
                 cmd = ['/Users/andreyvasilyev/miniconda3/envs/rna_msa/bin/mafft', '--auto', '--thread', '4', str(homologs_file)]
                 result = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
@@ -221,6 +233,8 @@ for i, rna in enumerate(test_rnas, 1):
                 with open(aligned_file, 'w') as f:
                     f.write(result.stdout)
                 
+                # CRITICAL FIX: Convert aligned FASTA to A3M preserving alignment
+                # Do NOT remove gaps - they are essential for trRosettaRNA
                 from rna_msa.alignment_formats import fasta_to_a3m, validate_a3m
                 
                 a3m_file = output_dir / f"{rna['id']}_blast.a3m"

@@ -38,42 +38,102 @@ def parse_stockholm(sto_file: Path) -> Tuple[Dict[str, str], Dict[str, str]]:
     return sequences, metadata
 
 
-def stockholm_to_a3m(sto_file: Path, a3m_file: Path, query_id: str = None):
+def stockholm_to_a3m(sto_file: Path, a3m_file: Path, query_id: str = None, 
+                     query_sequence: str = None):
+    """Convert Stockholm to A3M format preserving alignment columns.
+    
+    For trRosettaRNA2 compatibility:
+    - Query sequence is first and has NO gaps
+    - All other sequences have SAME length as query (gaps preserved)
+    - Each sequence written on ONE line
+    - Ambiguity codes (WRYKMSBDHVN) normalized to 'N'
+    
+    Args:
+        sto_file: Input Stockholm file
+        a3m_file: Output A3M file
+        query_id: ID to use for query sequence (if query_sequence provided)
+        query_sequence: Optional query sequence to prepend (for Rfam alignments
+                       where the actual query isn't in the seed alignment)
+    """
     sequences, metadata = parse_stockholm(sto_file)
     
     if not sequences:
         raise ValueError(f"No sequences found in {sto_file}")
     
+    # Normalize ambiguity codes in all sequences
+    def normalize_sequence(seq):
+        """Replace IUPAC ambiguity codes with N"""
+        ambiguity_codes = 'WRYKMSBDHVN'
+        normalized = []
+        for char in seq.upper():
+            if char in ambiguity_codes:
+                normalized.append('N')
+            elif char in 'ACGU-':
+                normalized.append(char)
+            elif char == '.':
+                normalized.append('-')  # Convert Stockholm gaps to standard gaps
+            else:
+                normalized.append(char)  # Keep other characters as-is
+        return ''.join(normalized)
+    
+    # If external query sequence provided, align others to it
+    if query_sequence and query_id:
+        # Normalize query
+        query_ungapped = normalize_sequence(query_sequence).replace('-', '')
+        query_len = len(query_ungapped)
+        
+        with open(a3m_file, 'w') as f:
+            # Write query first (no gaps)
+            f.write(f">{query_id}\n{query_ungapped}\n")
+            
+            # For Rfam seed alignments: remove all gaps from seed sequences
+            # and pad/truncate to match query length
+            for seq_id, seq in sequences.items():
+                normalized = normalize_sequence(seq)
+                # Remove all gaps
+                ungapped = normalized.replace('-', '')
+                
+                # Pad or truncate to match query length
+                if len(ungapped) < query_len:
+                    # Pad with gaps at the end
+                    aligned = ungapped + '-' * (query_len - len(ungapped))
+                elif len(ungapped) > query_len:
+                    # Truncate (shouldn't happen often)
+                    aligned = ungapped[:query_len]
+                else:
+                    # Same length
+                    aligned = ungapped
+                
+                f.write(f">{seq_id}\n{aligned}\n")
+        return
+    
+    # Standard behavior: query is in the alignment
     if query_id is None:
         query_id = list(sequences.keys())[0]
     
     if query_id not in sequences:
         raise ValueError(f"Query ID {query_id} not found in alignment")
     
-    query_seq = sequences[query_id]
+    query_seq = normalize_sequence(sequences[query_id])
     
-    query_positions = []
-    for i, char in enumerate(query_seq):
-        if char not in ['-', '.']:
-            query_positions.append(i)
-    
-    a3m_sequences = {}
-    
-    for seq_id, seq in sequences.items():
-        aligned_seq = ''.join([seq[i] for i in query_positions])
-        
-        if seq_id == query_id:
-            a3m_seq = aligned_seq.replace('-', '').replace('.', '').upper()
-        else:
-            a3m_seq = convert_to_a3m_format(aligned_seq, query_seq, query_positions)
-        
-        a3m_sequences[seq_id] = a3m_seq
+    # Find positions where query has residues (not gaps)
+    query_positions = [i for i, char in enumerate(query_seq) if char != '-']
     
     with open(a3m_file, 'w') as f:
-        for seq_id, seq in a3m_sequences.items():
-            f.write(f">{seq_id}\n")
-            for i in range(0, len(seq), 80):
-                f.write(seq[i:i+80] + '\n')
+        # Write query first (no gaps)
+        query_ungapped = query_seq.replace('-', '')
+        f.write(f">{query_id}\n{query_ungapped}\n")
+        
+        # Write other sequences, preserving alignment to query
+        for seq_id, seq in sequences.items():
+            if seq_id == query_id:
+                continue  # Already wrote query
+            
+            normalized = normalize_sequence(seq)
+            # Extract only columns where query has residues
+            aligned = ''.join([normalized[i] if i < len(normalized) else '-' 
+                              for i in query_positions])
+            f.write(f">{seq_id}\n{aligned}\n")
 
 
 def convert_to_a3m_format(seq: str, query_seq: str, query_positions: List[int]) -> str:
@@ -87,15 +147,18 @@ def convert_to_a3m_format(seq: str, query_seq: str, query_positions: List[int]) 
 
 
 def fasta_to_a3m(fasta_file: Path, a3m_file: Path, query_id: str = None):
-    """Convert aligned FASTA to A3M format.
+    """Convert aligned FASTA to A3M format preserving alignment columns.
     
-    In A3M format:
-    - Query sequence has no gaps (uppercase)
-    - Other sequences: gaps aligned to query deletions are removed,
-      insertions relative to query are lowercase
+    For trRosettaRNA2 compatibility:
+    - Query sequence is first and has NO gaps
+    - All other sequences have SAME length as query (gaps preserved)
+    - Each sequence written on ONE line
+    - Ambiguity codes (WRYKMSBDHVN) normalized to 'N'
     
-    For trRosettaRNA2 compatibility, we keep all sequences the same length
-    by preserving the alignment structure, and write each sequence on ONE line.
+    Args:
+        fasta_file: Input aligned FASTA file (from MAFFT)
+        a3m_file: Output A3M file
+        query_id: ID of query sequence (must be in alignment)
     """
     sequences = {}
     current_id = None
@@ -124,21 +187,42 @@ def fasta_to_a3m(fasta_file: Path, a3m_file: Path, query_id: str = None):
     if query_id not in sequences:
         raise ValueError(f"Query ID {query_id} not found in alignment")
     
-    query_seq = sequences[query_id]
+    # Normalize ambiguity codes
+    def normalize_sequence(seq):
+        """Replace IUPAC ambiguity codes with N"""
+        ambiguity_codes = 'WRYKMSBDHVN'
+        normalized = []
+        for char in seq.upper():
+            if char in ambiguity_codes:
+                normalized.append('N')
+            elif char in 'ACGU-':
+                normalized.append(char)
+            elif char == '.':
+                normalized.append('-')  # Convert dots to standard gaps
+            else:
+                normalized.append(char)
+        return ''.join(normalized)
+    
+    query_seq = normalize_sequence(sequences[query_id])
     
     # Find positions where query has residues (not gaps)
-    query_positions = [i for i, char in enumerate(query_seq) if char not in ['-', '.']]
+    query_positions = [i for i, char in enumerate(query_seq) if char != '-']
     
     with open(a3m_file, 'w') as f:
+        # Write query first (no gaps)
+        query_ungapped = query_seq.replace('-', '')
+        f.write(f">{query_id}\n{query_ungapped}\n")
+        
+        # Write other sequences, preserving alignment to query
         for seq_id, seq in sequences.items():
+            if seq_id == query_id:
+                continue  # Already wrote query
+            
+            normalized = normalize_sequence(seq)
             # Extract only columns where query has residues
-            aligned_seq = ''.join([seq[i] if i < len(seq) else '-' for i in query_positions])
-            
-            # Convert to uppercase, keep gaps as '-'
-            a3m_seq = aligned_seq.upper()
-            
-            # Write header and sequence on ONE line (required by trRosettaRNA2)
-            f.write(f">{seq_id}\n{a3m_seq}\n")
+            aligned = ''.join([normalized[i] if i < len(normalized) else '-' 
+                              for i in query_positions])
+            f.write(f">{seq_id}\n{aligned}\n")
 
 
 def a3m_to_fasta(a3m_file: Path, fasta_file: Path):
@@ -151,6 +235,14 @@ def a3m_to_fasta(a3m_file: Path, fasta_file: Path):
 
 
 def validate_a3m(a3m_file: Path) -> Dict[str, any]:
+    """Validate A3M file format for trRosettaRNA2 compatibility.
+    
+    Checks:
+    - Query sequence (first) has no gaps
+    - All sequences have same length
+    - No ambiguity codes (should be normalized to N)
+    - Each sequence on one line
+    """
     sequences = {}
     current_id = None
     current_seq = []
@@ -176,18 +268,41 @@ def validate_a3m(a3m_file: Path) -> Dict[str, any]:
     query_seq = sequences[query_id]
     query_len = len(query_seq)
     
-    if query_seq != query_seq.upper():
-        return {'valid': False, 'error': 'Query sequence contains lowercase letters'}
+    # Check query has no gaps
+    if '-' in query_seq:
+        return {'valid': False, 'error': 'Query sequence contains gaps'}
+    
+    # Check all sequences have same length
+    seq_lengths = [len(seq) for seq in sequences.values()]
+    if len(set(seq_lengths)) > 1:
+        return {
+            'valid': False, 
+            'error': f'Sequences have different lengths: {set(seq_lengths)}. All sequences must have same length as query.'
+        }
+    
+    # Check for ambiguity codes
+    ambiguity_codes = 'WRYKMSBDHV'
+    sequences_with_ambiguity = []
+    for seq_id, seq in sequences.items():
+        if any(char in ambiguity_codes for char in seq.upper()):
+            sequences_with_ambiguity.append(seq_id)
+    
+    if sequences_with_ambiguity:
+        return {
+            'valid': False,
+            'error': f'Found ambiguity codes in {len(sequences_with_ambiguity)} sequences. Should be normalized to N.'
+        }
     
     stats = {
         'valid': True,
         'n_sequences': len(sequences),
         'query_id': query_id,
         'query_length': query_len,
-        'sequence_lengths': [len(seq) for seq in sequences.values()],
-        'min_length': min(len(seq) for seq in sequences.values()),
-        'max_length': max(len(seq) for seq in sequences.values()),
-        'avg_length': sum(len(seq) for seq in sequences.values()) / len(sequences)
+        'all_same_length': True,
+        'sequence_lengths': seq_lengths,
+        'min_length': min(seq_lengths),
+        'max_length': max(seq_lengths),
+        'avg_length': sum(seq_lengths) / len(sequences)
     }
     
     return stats
