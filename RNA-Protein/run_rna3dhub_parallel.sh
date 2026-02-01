@@ -1,9 +1,10 @@
 #!/bin/bash
 # Run RNA 3D Hub processing in parallel
-# Splits 13,782 RNAs into 10 parallel jobs
+# Splits 13,782 RNAs into parallel jobs optimized for 12 CPU threads
 
 TOTAL_RNAS=13782
-NUM_JOBS=4  # Adjust based on your CPU cores (4-10 recommended)
+NUM_JOBS=6  # 6 jobs with 2 threads each = 12 total threads
+THREADS_PER_JOB=2
 BATCH_SIZE=$((TOTAL_RNAS / NUM_JOBS))
 
 echo "Processing $TOTAL_RNAS RNAs in $NUM_JOBS parallel jobs"
@@ -28,6 +29,7 @@ for i in $(seq 0 $((NUM_JOBS - 1))); do
         --start $START \
         --end $END \
         --batch-size 100 \
+        --threads $THREADS_PER_JOB \
         > "RNA-Protein/data/rna3dhub_a3m_output/job_${i}.log" 2>&1 &
 done
 

@@ -49,7 +49,7 @@ def parse_fasta(fasta_file):
     return rnas
 
 
-def run_infernal_rfam(rna, output_dir, rfam_cm, rfam_seed, cmscan_path, timeout=60):
+def run_infernal_rfam(rna, output_dir, rfam_cm, rfam_seed, cmscan_path, threads=4, timeout=60):
     """Try Infernal+Rfam approach."""
     query_file = output_dir / f"{rna['id']}_query.fa"
     with open(query_file, 'w') as f:
@@ -63,7 +63,7 @@ def run_infernal_rfam(rna, output_dir, rfam_cm, rfam_seed, cmscan_path, timeout=
             '--tblout', str(infernal_out),
             '--cut_ga',
             '--nohmmonly',
-            '--cpu', '4',
+            '--cpu', str(threads),
             str(rfam_cm),
             str(query_file)
         ]
@@ -119,7 +119,7 @@ def run_infernal_rfam(rna, output_dir, rfam_cm, rfam_seed, cmscan_path, timeout=
 
 
 def run_blast_mafft(rna, output_dir, rnacentral_db, blastn_path, blastdbcmd_path, 
-                    mafft_path, min_identity=70.0, min_homologs=10, timeout=180):
+                    mafft_path, threads=4, min_identity=70.0, min_homologs=10, timeout=180):
     """Try BLAST+MAFFT approach."""
     query_file = output_dir / f"{rna['id']}_query.fa"
     with open(query_file, 'w') as f:
@@ -135,7 +135,7 @@ def run_blast_mafft(rna, output_dir, rnacentral_db, blastn_path, blastdbcmd_path
             '-evalue', '0.001',
             '-outfmt', '6 sseqid pident length',
             '-max_target_seqs', '100',
-            '-num_threads', '4'
+            '-num_threads', str(threads)
         ]
         
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
@@ -213,6 +213,8 @@ def main():
     parser.add_argument('--end', type=int, default=None, help='End index')
     parser.add_argument('--batch-size', type=int, default=100, 
                        help='Save results every N RNAs')
+    parser.add_argument('--threads', type=int, default=4,
+                       help='Number of threads for cmscan/blastn/mafft')
     args = parser.parse_args()
     
     # Paths
@@ -258,7 +260,7 @@ def main():
         # Try Infernal first
         print(f"  [1] Trying Infernal+Rfam...", end='', flush=True)
         success, a3m_file, n_seqs, error = run_infernal_rfam(
-            rna, output_dir, rfam_cm, rfam_seed, cmscan_path
+            rna, output_dir, rfam_cm, rfam_seed, cmscan_path, threads=args.threads
         )
         
         if success:
@@ -273,7 +275,7 @@ def main():
             print(f"  [2] Trying BLAST+MAFFT...", end='', flush=True)
             success, a3m_file, n_seqs, error = run_blast_mafft(
                 rna, output_dir, rnacentral_db, blastn_path, 
-                blastdbcmd_path, mafft_path
+                blastdbcmd_path, mafft_path, threads=args.threads
             )
             
             if success:
