@@ -1,0 +1,6 @@
+rna_id	length	infernal_success	blast_success	hybrid_success	final_method	a3m_file	n_sequences	time
+1ASY_R	75	True	False	True	Infernal	1ASY_R_RF00005.a3m	955	0.24274992942810059
+1ASY_S	75	True	False	True	Infernal	1ASY_S_RF00005.a3m	955	0.12434697151184082
+1ASZ_R	75	True	False	True	Infernal	1ASZ_R_RF00005.a3m	955	0.12755489349365234
+1ASZ_S	75	True	False	True	Infernal	1ASZ_S_RF00005.a3m	955	0.12513518333435059
+1AV6_B	295	False	False	False			0	15.934605121612549
