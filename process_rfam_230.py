@@ -15,6 +15,7 @@ def parse_fasta(fasta_file):
     rnas = []
     current_id = None
     current_seq = []
+    family_counts = {}
     
     with open(fasta_file, 'r') as f:
         for line in f:
@@ -23,7 +24,13 @@ def parse_fasta(fasta_file):
                 if current_id and current_seq:
                     seq = ''.join(current_seq)
                     rnas.append({'id': current_id, 'seq': seq, 'length': len(seq)})
-                current_id = line[1:]
+                
+                # Add unique sequence number to family ID
+                family_id = line[1:]
+                if family_id not in family_counts:
+                    family_counts[family_id] = 0
+                family_counts[family_id] += 1
+                current_id = f"{family_id}_seq{family_counts[family_id]}"
                 current_seq = []
             else:
                 current_seq.append(line)
