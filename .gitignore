@@ -54,6 +54,10 @@ RNA-Protein/data/rfam/rfam_sequences.fasta
 RNA-Protein/data/rnacentral/
 **/rnacentral_active.fasta*
 
+# RNAcentral subset directories (large FASTA files)
+RNA-Protein/data/rnacentral_subset/
+RNA-Protein/data/rnacentral_subset_simple/
+
 # BLAST database files
 *.nhr
 *.nin

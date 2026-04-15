@@ -267,9 +267,9 @@ def main():
             infernal_success += 1
             total_success += 1
             final_method = 'Infernal'
-            print(f" ✓ Success ({n_seqs} seqs)")
+            print(f" [OK] Success ({n_seqs} seqs)")
         else:
-            print(f" ✗ {error}")
+            print(f" [FAIL] {error}")
             
             # Try BLAST
             print(f"  [2] Trying BLAST+MAFFT...", end='', flush=True)
@@ -282,9 +282,9 @@ def main():
                 blast_success += 1
                 total_success += 1
                 final_method = 'BLAST'
-                print(f" ✓ Success ({n_seqs} seqs)")
+                print(f" [OK] Success ({n_seqs} seqs)")
             else:
-                print(f" ✗ {error}")
+                print(f" [FAIL] {error}")
                 final_method = None
         
         elapsed = time.time() - start_time

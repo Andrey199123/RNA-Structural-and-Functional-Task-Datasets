@@ -210,7 +210,7 @@ for i, rna in enumerate(lncrnas, 1):
         })
         
     except subprocess.TimeoutExpired:
-        print(f" ✗ Timeout")
+        print(f" [TIMEOUT] Timeout")
         results.append({
             'rna_id': rna['id'],
             'length': rna['length'],
