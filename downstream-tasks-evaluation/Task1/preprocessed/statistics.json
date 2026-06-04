@@ -1,0 +1,66 @@
+{
+  "train": {
+    "num_sequences": 89,
+    "num_missing_labels": 434,
+    "asa_stats": {
+      "min": 4.5,
+      "max": 402.8,
+      "mean": 142.79814814814745,
+      "count": 27216
+    },
+    "seq_length_stats": {
+      "min": 33,
+      "max": 3149,
+      "mean": 310.6741573033708,
+      "median": 72.0
+    }
+  },
+  "val": {
+    "num_sequences": 0,
+    "num_missing_labels": 0,
+    "asa_stats": {
+      "min": 0.0,
+      "max": 0.0,
+      "mean": 0.0,
+      "count": 0
+    },
+    "seq_length_stats": {
+      "min": 0,
+      "max": 0,
+      "mean": 0,
+      "median": 0
+    }
+  },
+  "test_ts44": {
+    "num_sequences": 44,
+    "num_missing_labels": 173,
+    "asa_stats": {
+      "min": 8.9,
+      "max": 411.0,
+      "mean": 158.33750000000035,
+      "count": 8392
+    },
+    "seq_length_stats": {
+      "min": 35,
+      "max": 3119,
+      "mean": 194.6590909090909,
+      "median": 76.5
+    }
+  },
+  "test_cn48": {
+    "num_sequences": 48,
+    "num_missing_labels": 183,
+    "asa_stats": {
+      "min": 12.1,
+      "max": 380.8,
+      "mean": 159.26338143207184,
+      "count": 3673
+    },
+    "seq_length_stats": {
+      "min": 32,
+      "max": 389,
+      "mean": 80.33333333333333,
+      "median": 68.0
+    }
+  }
+}

@@ -1,0 +1,9 @@
+numpy
+pandas
+h5py
+pyyaml
+requests
+scipy
+biopython
+datasets
+tqdm

@@ -112,6 +112,9 @@ test_output/
 RNA-Protein/data/rna_msa_output/
 RNA-Protein/data/strategy_comparison/
 
+# Downstream task raw datasets (manual downloads; large)
+downstream-tasks-evaluation/data/raw/
+
 # trRosettaRNA2 model weights and large files
 trRosettaRNA2/params/
 trRosettaRNA2/params_trRNA2.tar.bz2

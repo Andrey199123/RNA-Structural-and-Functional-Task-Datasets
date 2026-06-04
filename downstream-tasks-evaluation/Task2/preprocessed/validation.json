@@ -1,0 +1,15 @@
+{
+  "ok": true,
+  "checks": [
+    {
+      "name": "n_sequences_expected",
+      "passed": true,
+      "details": "observed=17277 expected=17277 tolerance=0.00% range=[17277,17277]"
+    },
+    {
+      "name": "max_len_used_expected",
+      "passed": true,
+      "details": "observed=8000 expected=8000 tolerance=0.00% range=[8000,8000]"
+    }
+  ]
+}

@@ -1,0 +1,84 @@
+{
+  "source": {
+    "fasta": "/Users/andreyvasilyev/Documents/RNA-Protein-Research-Project-main/downstream-tasks-evaluation/Task2/data/dm3loc/modified_multilabel_seq_nonredundent.fasta",
+    "format": "DM3Loc label bits in FASTA header",
+    "label_order_7": [
+      "Nucleus",
+      "Exosome",
+      "Cytosol",
+      "Cytoplasm(aux)",
+      "Ribosome",
+      "Membrane",
+      "ER"
+    ],
+    "predicted_labels_6": [
+      "Nucleus",
+      "Exosome",
+      "Cytosol",
+      "Ribosome",
+      "Membrane",
+      "ER"
+    ]
+  },
+  "preprocessing": {
+    "max_len": 8000,
+    "truncate": {
+      "method": "end_concat",
+      "left": 4000,
+      "right": 4000
+    },
+    "drop_cytoplasm_only": true
+  },
+  "counts": {
+    "n_sequences": 17277,
+    "n_dropped_cytoplasm_only": 29,
+    "n_truncated": 1212,
+    "fraction_truncated": 0.07015106789373154
+  },
+  "lengths": {
+    "original": {
+      "n": 17277.0,
+      "min": 186.0,
+      "p50": 2976.0,
+      "p90": 7039.0,
+      "p95": 8896.400000000001,
+      "p99": 13697.480000000003,
+      "max": 104301.0,
+      "mean": 3703.471609654454
+    },
+    "used": {
+      "n": 17277.0,
+      "min": 186.0,
+      "p50": 2976.0,
+      "p90": 7039.0,
+      "p95": 8000.0,
+      "p99": 8000.0,
+      "max": 8000.0,
+      "mean": 3493.9953116860565
+    }
+  },
+  "labels": {
+    "per_class_positive_counts": {
+      "Nucleus": 11923,
+      "Exosome": 17156,
+      "Cytosol": 2338,
+      "Ribosome": 5210,
+      "Membrane": 3232,
+      "ER": 1976
+    },
+    "num_labels_per_sample": {
+      "n": 17277.0,
+      "min": 1.0,
+      "p50": 2.0,
+      "p90": 4.0,
+      "p95": 4.0,
+      "p99": 5.0,
+      "max": 6.0,
+      "mean": 2.421427331133877
+    }
+  },
+  "outputs": {
+    "records": "/Users/andreyvasilyev/Documents/RNA-Protein-Research-Project-main/downstream-tasks-evaluation/Task2/preprocessed/dm3loc_trunc8000.jsonl.gz",
+    "folds": "/Users/andreyvasilyev/Documents/RNA-Protein-Research-Project-main/downstream-tasks-evaluation/Task2/preprocessed/folds.json"
+  }
+}

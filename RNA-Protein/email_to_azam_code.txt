@@ -1,0 +1,20 @@
+Subject: Balanced Subset Script
+
+Hi Azam,
+
+Thank you for the feedback and for letting us know about the A3M files. We're glad the balanced sampling approach worked well.
+
+Attached is the script we used for creating the balanced subset (create_balanced_subset.py).
+
+Usage:
+python create_balanced_subset.py \
+  --input data/rnacentral/rnacentral_active.fasta \
+  --output-dir data/rnacentral_subset_balanced \
+  --target-size 400000 \
+  --min-per-class 1000 \
+  --threads 12
+
+We'll start working on the downstream tasks tomorrow.
+
+Best regards,
+Andrey, Ishaan, and Pavitra
