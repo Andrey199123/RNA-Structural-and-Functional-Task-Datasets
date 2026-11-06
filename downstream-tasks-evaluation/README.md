@@ -46,7 +46,3 @@ python -m downstream_tasks.cli run-task task7_long_range --force
 - **Task 3 (Contact Map)**: downloads the public RNAcontact benchmark archives and computes 8Å long-range contacts (|i−j| ≥ 24).
 - **Task 7 (Long-Range)**: uses `multimolecule/bprna-spot-0` TR0 exported by `Task7/download_bprna_tr0.py`.
 - **Task 6 (Secondary Structure)**: disabled by default (see `config/task_configs.yaml`) pending explicit approval.
-
-## Kiro Specs
-
-The original spec documents live in `../.kiro/specs/downstream-tasks-evaluation/`.

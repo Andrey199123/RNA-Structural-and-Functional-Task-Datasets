@@ -148,3 +148,8 @@ main.txt
 
 # Full logs
 *_full.log
+
+# Local assistant planning and editor state
+.kiro/
+.cursor/
+.codex/
